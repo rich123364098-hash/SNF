@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>商富生產進度管理 - 現場倉管打卡端</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- FontAwesome 圖示 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- LINE LIFF SDK (v2) -->
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    [v-cloak] { display: none; }
+    button, input, select { touch-action: manipulation; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen selection:bg-blue-500 selection:text-white pb-20">
+
+  <div id="app" v-cloak>
+
+    <!-- ================= 0. 現場倉管密碼驗證遮罩 ================= -->
+    <div v-if="!isVerified" class="fixed inset-0 bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-5 shadow-2xl border border-slate-200 text-center">
+        <!-- 向量商標 -->
+        <div class="w-16 h-16 mx-auto flex items-center justify-center">
+          <svg class="w-full h-full" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="snfGradMobLogin" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#FF3800" />
+                <stop offset="45%" stop-color="#D90000" />
+                <stop offset="100%" stop-color="#FFB100" />
+              </linearGradient>
+            </defs>
+            <g font-family="Impact, Arial Black, sans-serif" font-weight="900" font-style="italic" font-size="88" fill="url(#snfGradMobLogin)" letter-spacing="1">
+              <text x="15" y="115">SNF</text>
+            </g>
+            <g font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="20.5" fill="#111827" letter-spacing="1.5">
+              <text x="18" y="152">SHANG FUH</text>
+            </g>
+            <g font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="12" fill="#111827" letter-spacing="0.8">
+              <text x="18" y="174">ENTERPRISE CO., LTD.</text>
+            </g>
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-lg font-black text-slate-900">商富生產管理 - 現場端</h2>
+          <p class="text-xs text-slate-500 mt-1 font-bold">倉管 / 產線人員身分認證</p>
+        </div>
+        <form @submit.prevent="verifyPassword" class="space-y-4 text-left">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">現場倉管密碼</label>
+            <input v-model="passwordInput" type="password" inputmode="numeric" required placeholder="請輸入現場端密碼..." class="w-full px-4 py-3 border border-slate-300 rounded-xl font-bold text-base focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <p v-if="loginError" class="text-xs font-bold text-red-600 flex items-center">
+            <i class="fa-solid fa-triangle-exclamation mr-1"></i> {{ loginError }}
+          </p>
+          <button type="submit" :disabled="isCheckingAuth" class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-base rounded-xl shadow-md transition flex items-center justify-center">
+            <i v-if="isCheckingAuth" class="fa-solid fa-circle-notch fa-spin mr-2"></i>
+            {{ isCheckingAuth ? '驗證中...' : '進入現場打卡系統' }}
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= 1. 手機端主畫面 ================= -->
+    <div v-else class="max-w-md mx-auto p-4 space-y-4">
+      
+      <!-- 頂部資訊列 -->
+      <header class="flex justify-between items-center bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 flex-shrink-0">
+            <svg class="w-full h-full" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="snfGradMobTop" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#FF3800" />
+                  <stop offset="45%" stop-color="#D90000" />
+                  <stop offset="100%" stop-color="#FFB100" />
+                </linearGradient>
+              </defs>
+              <g font-family="Impact, Arial Black, sans-serif" font-weight="900" font-style="italic" font-size="88" fill="url(#snfGradMobTop)" letter-spacing="1">
+                <text x="15" y="115">SNF</text>
+              </g>
+              <g font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="20.5" fill="#111827" letter-spacing="1.5">
+                <text x="18" y="152">SHANG FUH</text>
+              </g>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-sm font-black text-slate-900 leading-tight">商富現場管理</h1>
+            <p class="text-[11px] font-bold text-slate-500">
+              <span v-if="lineUserName" class="text-emerald-600"><i class="fa-brands fa-line mr-1"></i>{{ lineUserName }}</span>
+              <span v-else>現場倉管模式</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <button @click="fetchData" :disabled="isLoading" title="重新載入" class="p-2.5 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl border transition">
+            <i class="fa-solid fa-rotate" :class="{ 'fa-spin': isLoading }"></i>
+          </button>
+          <button @click="logout" title="登出" class="p-2.5 text-slate-400 hover:text-red-600 bg-slate-100 rounded-xl border transition">
+            <i class="fa-solid fa-power-off"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- 快速篩選列 (站別 + 編號關鍵字) -->
+      <section class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-2.5">
+        <div class="flex gap-2">
+          <input v-model.trim="searchQuery" type="text" placeholder="搜尋編號、規格或刀片..." class="flex-1 px-3 py-2 border border-slate-300 rounded-xl font-bold text-xs">
+          <button v-if="searchQuery" @click="searchQuery = ''" class="px-2.5 bg-slate-200 text-slate-600 rounded-xl text-xs font-bold">清除</button>
+        </div>
+
+        <!-- 站別過濾滑軌 -->
+        <div class="flex overflow-x-auto space-x-1.5 pb-1 text-xs">
+          <button @click="filterStation = 0" :class="filterStation === 0 ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'" class="px-3 py-1.5 rounded-xl font-bold whitespace-nowrap">
+            全部 ({{ activeItems.length }})
+          </button>
+          <button v-for="(st, idx) in steps.slice(0, 8)" :key="st" @click="filterStation = idx + 1" :class="filterStation === (idx + 1) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'" class="px-2.5 py-1.5 rounded-xl font-bold whitespace-nowrap">
+            {{ idx + 1 }}. {{ st }} ({{ getStationCount(idx + 1) }})
+          </button>
+        </div>
+      </section>
+
+      <!-- 載入中狀態 -->
+      <div v-if="isLoading" class="text-center py-12 text-slate-400 font-bold text-xs">
+        <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600 block mb-2"></i>
+        正在載入產線資料...
+      </div>
+
+      <!-- 工單卡片清單 -->
+      <div v-else class="space-y-3">
+        <div v-for="item in filteredItems" :key="item.id" 
+             class="bg-white rounded-2xl shadow-sm border p-4 transition-all"
+             :class="item.isUrgent ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'">
+          
+          <!-- 卡片頂部 -->
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <div class="flex items-center space-x-1.5 mb-1">
+                <span class="bg-slate-800 text-white font-mono text-xs font-black px-2 py-0.5 rounded">編號 {{ item.batch }}</span>
+                <span v-if="item.isUrgent" class="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded animate-pulse">急件</span>
+                <span v-if="item.isCustom" class="bg-amber-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded">訂製</span>
+              </div>
+              <h3 class="text-base font-black text-slate-900 leading-snug">{{ item.spec }}</h3>
+            </div>
+
+            <!-- 數量大標籤 -->
+            <div class="text-right">
+              <span class="text-[10px] text-slate-400 font-bold block">數量</span>
+              <span class="text-lg font-black text-blue-600">{{ item.qty }} <span class="text-xs text-slate-600">支</span></span>
+            </div>
+          </div>
+
+          <!-- 卡片規格參數 -->
+          <div class="flex flex-wrap gap-1.5 text-xs mb-3">
+            <span :class="getBladeBadgeStyle(item.blade)" class="px-2 py-0.5 rounded font-black text-[11px]">
+              刀片: {{ item.blade || '無' }}
+            </span>
+            <span v-if="item.material" class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border text-[11px] font-bold">
+              素材: {{ item.material }}
+            </span>
+            <span v-if="item.remark" class="bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded text-[11px] font-bold">
+              備註: {{ item.remark }}
+            </span>
+          </div>
+
+          <!-- 當前站別狀態 -->
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-100 mb-3 flex items-center justify-between">
+            <span class="text-xs text-slate-500 font-bold">目前進度：</span>
+            <span class="text-xs font-black text-white px-2.5 py-1 rounded-lg shadow-sm" :class="stepColors[item.currentStep - 1]">
+              第 {{ item.currentStep }} 站：{{ steps[item.currentStep - 1] }}
+            </span>
+          </div>
+
+          <!-- 現場快速打卡按鈕群 (1~9 站) -->
+          <div>
+            <span class="text-[11px] font-bold text-slate-400 mb-1 block">變更打卡站別：</span>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button 
+                v-for="(st, idx) in steps" 
+                :key="st"
+                @click="onStepClick(item, idx + 1)"
+                :class="[
+                  item.currentStep === (idx + 1) ? 'bg-amber-500 text-white font-black ring-2 ring-amber-300 shadow-sm' : 
+                  item.currentStep > (idx + 1) ? 'bg-blue-50 text-blue-800 font-bold border border-blue-200' : 
+                  'bg-slate-100 text-slate-600 font-bold hover:bg-slate-200'
+                ]"
+                class="py-2 px-1 text-[11px] rounded-xl text-center transition flex flex-col items-center justify-center">
+                <span>{{ idx + 1 }}. {{ st }}</span>
+                <i v-if="item.currentStep > (idx + 1)" class="fa-solid fa-check text-[10px] text-blue-600 mt-0.5"></i>
+                <span v-else-if="item.currentStep === (idx + 1)" class="text-[9px] bg-amber-600 text-white px-1 rounded mt-0.5">進行中</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <div v-if="filteredItems.length === 0" class="text-center py-12 text-slate-400 font-bold text-xs bg-white rounded-2xl border">
+          找不到符合條件的在製工單
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================= 2. 完工入庫彈窗 (防呆機制) ================= -->
+    <div v-if="showStockModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-3xl max-w-xs w-full p-5 space-y-4 shadow-2xl text-left border">
+        <div class="text-center pb-2 border-b">
+          <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xl">
+            <i class="fa-solid fa-boxes-packing"></i>
+          </div>
+          <h4 class="text-base font-black text-slate-900">確認入庫並封存</h4>
+          <p class="text-xs text-slate-500 font-bold mt-1">{{ targetStockItem.spec }}</p>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block font-bold text-slate-600 mb-1">預計生產數量</label>
+            <input :value="targetStockItem.qty + ' 支'" disabled class="w-full bg-slate-100 border p-2.5 rounded-xl font-bold text-slate-500 text-sm">
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-800 mb-1">實際完工良品數 (若損耗缺件請修改) *</label>
+            <input v-model.number="stockActualQty" type="number" min="0" :max="targetStockItem.qty" inputmode="numeric" class="w-full border-2 border-emerald-500 p-2.5 rounded-xl font-black text-lg text-slate-900 focus:outline-none">
+          </div>
+
+          <div v-if="stockActualQty < targetStockItem.qty" class="text-xs text-red-600 font-bold bg-red-50 p-2 rounded-lg">
+            ⚠️ 缺少 {{ targetStockItem.qty - stockActualQty }} 支，將正式列入損耗登錄。
+          </div>
+        </div>
+
+        <div class="flex space-x-2 pt-2">
+          <button @click="showStockModal = false" class="flex-1 py-3 border rounded-xl font-bold text-xs text-slate-600">取消</button>
+          <button @click="confirmStockIn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs shadow">確認入庫封存</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const API_URL = 'https://script.google.com/macros/s/AKfycbw7xoMPCwINwKSZyvH2-8QsEnOqtpsvXy68666qYalCO4hqsSp0eVkA4HHpkGfkNlVN/exec';
+        const LIFF_ID = '';
+
+        const isVerified = ref(false);
+        const passwordInput = ref('');
+        const loginError = ref('');
+        const isCheckingAuth = ref(false);
+        const isLoading = ref(false);
+
+        const activeItems = ref([]);
+        const searchQuery = ref('');
+        const filterStation = ref(0);
+        const lineUserName = ref('');
+
+        const showStockModal = ref(false);
+        const targetStockItem = ref({});
+        const stockActualQty = ref(0);
+
+        const steps = ['物料區', '車床完成', '銑溝完成', '刀片座完成', '等待熱處理', '熱處理完成', '等待研磨', '電鍍/染黑', '入庫'];
+        const stepColors = ['bg-slate-500', 'bg-sky-500', 'bg-teal-500', 'bg-emerald-500', 'bg-amber-500', 'bg-orange-500', 'bg-purple-500', 'bg-indigo-600', 'bg-emerald-600'];
+
+        onMounted(async () => {
+          if (LIFF_ID && window.liff) {
+            try {
+              await liff.init({ liffId: LIFF_ID });
+              if (liff.isLoggedIn()) {
+                const profile = await liff.getProfile();
+                lineUserName.value = profile.displayName;
+              }
+            } catch (err) {
+              console.warn('LIFF 初始化略過', err);
+            }
+          }
+
+          if (localStorage.getItem('snf_warehouse_token') === 'true') {
+            isVerified.value = true;
+            fetchData();
+          }
+        });
+
+        const verifyPassword = async () => {
+          loginError.value = '';
+          isCheckingAuth.value = true;
+          try {
+            const res = await fetch(`${API_URL}?action=check_auth&type=warehouse&pwd=${encodeURIComponent(passwordInput.value)}`);
+            const json = await res.json();
+            if (json.status === 'success' && json.verified) {
+              isVerified.value = true;
+              localStorage.setItem('snf_warehouse_token', 'true');
+              fetchData();
+            } else {
+              loginError.value = '現場倉管密碼錯誤，請重新確認！';
+            }
+          } catch (e) {
+            console.error('驗證失敗', e);
+            loginError.value = '無法連線驗證伺服器，請確認網路！';
+          } finally {
+            isCheckingAuth.value = false;
+          }
+        };
+
+        const logout = () => {
+          localStorage.removeItem('snf_warehouse_token');
+          isVerified.value = false;
+        };
+
+        const fetchData = async () => {
+          isLoading.value = true;
+          try {
+            const res = await fetch(API_URL);
+            const json = await res.json();
+            if (json && json.status === 'success') {
+              activeItems.value = json.data || [];
+            }
+          } catch (e) {
+            console.error('讀取生產中清單失敗', e);
+          } finally {
+            isLoading.value = false;
+          }
+        };
+
+        const syncItemToSheet = async (action, payload) => {
+          try {
+            await fetch(API_URL, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({ action: action, ...payload })
+            });
+          } catch (e) {
+            console.error('同步失敗', e);
+          }
+        };
+
+        const getStationCount = (st) => {
+          return activeItems.value.filter(i => Number(i.currentStep) === st).length;
+        };
+
+        const filteredItems = computed(() => {
+          return activeItems.value.filter(item => {
+            if (filterStation.value !== 0 && Number(item.currentStep) !== filterStation.value) {
+              return false;
+            }
+            if (searchQuery.value) {
+              const q = searchQuery.value.toLowerCase();
+              const matchBatch = String(item.batch || '').toLowerCase().includes(q);
+              const matchSpec = String(item.spec || '').toLowerCase().includes(q);
+              const matchBlade = String(item.blade || '').toLowerCase().includes(q);
+              if (!matchBatch && !matchSpec && !matchBlade) return false;
+            }
+            return true;
+          });
+        });
+
+        const onStepClick = (item, stepNum) => {
+          if (stepNum === 9) {
+            targetStockItem.value = item;
+            stockActualQty.value = item.actualQty !== undefined ? item.actualQty : item.qty;
+            showStockModal.value = true;
+          } else {
+            item.currentStep = stepNum;
+            syncItemToSheet('save', { item: item });
+          }
+        };
+
+        const confirmStockIn = () => {
+          const item = targetStockItem.value;
+          item.actualQty = Number(stockActualQty.value) || 0;
+          item.currentStep = 9;
+
+          activeItems.value = activeItems.value.filter(i => i.id !== item.id);
+          syncItemToSheet('save', { item: item });
+          showStockModal.value = false;
+        };
+
+        const getBladeBadgeStyle = (blade) => {
+          if (!blade) return 'bg-slate-200 text-slate-700';
+          const b = String(blade);
+          if (b.includes('桃')) return 'bg-blue-600 text-white';
+          if (b.includes('TT')) return 'bg-emerald-600 text-white';
+          if (b.includes('四角')) return 'bg-teal-700 text-white';
+          if (b.includes('WDX')) return 'bg-amber-900 text-white';
+          if (b.includes('AMEC')) return 'bg-purple-700 text-white';
+          return 'bg-indigo-600 text-white';
+        };
+
+        return {
+          isVerified, passwordInput, loginError, isCheckingAuth, verifyPassword, logout,
+          isLoading, activeItems, searchQuery, filterStation, filteredItems,
+          steps, stepColors, getStationCount, onStepClick,
+          showStockModal, targetStockItem, stockActualQty, confirmStockIn,
+          getBladeBadgeStyle, lineUserName, fetchData
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
