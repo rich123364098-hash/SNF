@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>商富生產進度管理系統 - 電腦端</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- SheetJS (Excel 匯入解析) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- FontAwesome 圖示 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .hp-bar-glow { box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4), inset 0 -1px 2px rgba(0, 0, 0, 0.25); }
+    
+    body.custom-sky-sparkle-bg {
+      background-color: #dbe7f3;
+      background-image: 
+        radial-gradient(circle at 12% 16%, rgba(255, 215, 120, 0.95) 0%, rgba(255, 180, 50, 0.4) 1.5px, transparent 3.5px),
+        radial-gradient(circle at 18% 32%, rgba(255, 225, 140, 0.9) 0%, rgba(255, 190, 70, 0.3) 1px, transparent 3px),
+        radial-gradient(circle at 26% 22%, rgba(255, 210, 110, 0.95) 0%, rgba(255, 170, 50, 0.35) 2px, transparent 4px),
+        radial-gradient(circle at 82% 18%, rgba(255, 220, 130, 0.85) 0%, rgba(255, 180, 60, 0.3) 1.5px, transparent 3.5px),
+        radial-gradient(circle at 88% 46%, rgba(255, 230, 160, 0.8) 0%, rgba(255, 190, 80, 0.25) 1px, transparent 3px),
+        radial-gradient(circle at 66% 76%, rgba(255, 215, 120, 0.9) 0%, rgba(255, 175, 55, 0.35) 2px, transparent 4px),
+        radial-gradient(circle at 16% 86%, rgba(255, 225, 140, 0.95) 0%, rgba(255, 180, 60, 0.4) 2.5px, transparent 5px),
+        radial-gradient(circle at 24% 10%, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.6) 1.5px, transparent 3px),
+        radial-gradient(circle at 76% 12%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.5) 2px, transparent 4px),
+        radial-gradient(circle at 42% 24%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.4) 1.5px, transparent 3px),
+        radial-gradient(circle at 64% 38%, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.5) 2px, transparent 4px),
+        radial-gradient(circle at 10% 52%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.5) 2.5px, transparent 5px),
+        radial-gradient(circle at 90% 68%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.4) 1.5px, transparent 3.5px),
+        radial-gradient(circle at 46% 80%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.5) 2px, transparent 4px),
+        radial-gradient(circle at 14% 18%, rgba(255, 235, 190, 0.5) 0%, rgba(255, 245, 220, 0.2) 25px, transparent 55px),
+        radial-gradient(circle at 72% 16%, rgba(255, 255, 255, 0.55) 0%, rgba(240, 248, 255, 0.2) 30px, transparent 65px),
+        radial-gradient(circle at 86% 64%, rgba(255, 255, 255, 0.45) 0%, rgba(220, 238, 252, 0.2) 35px, transparent 70px),
+        radial-gradient(circle at 18% 84%, rgba(255, 240, 200, 0.45) 0%, rgba(255, 248, 230, 0.15) 28px, transparent 60px),
+        linear-gradient(135deg, #f7fafc 0%, #edf5fc 22%, #dbe8f5 52%, #c9def2 78%, #b8d4ee 100%);
+      background-attachment: fixed;
+      background-size: cover;
+      background-repeat: no-repeat;
+    }
+
+    .sticky-header-shadow {
+      box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+    }
+
+    /* 刀片專屬高識別度標籤顏色 */
+    .blade-badge-tao { background-color: #FF6348 !important; color: #FFFFFF !important; }
+    .blade-badge-tt { background-color: #1E90FF !important; color: #FFFFFF !important; }
+    .blade-badge-wdx { background-color: #FFA502 !important; color: #FFFFFF !important; }
+    .blade-badge-amec { background-color: #00B894 !important; color: #FFFFFF !important; }
+    .blade-badge-kyocera { background-color: #9B59B6 !important; color: #FFFFFF !important; }
+    .blade-badge-xcnt { background-color: #F1C40F !important; color: #2C3E50 !important; }
+    .blade-badge-sandvik { background-color: #0ABDE3 !important; color: #FFFFFF !important; }
+    .blade-badge-ccmt { background-color: #FD79A8 !important; color: #FFFFFF !important; }
+    .blade-badge-iscar { background-color: #78E08F !important; color: #2C3E50 !important; }
+    .blade-badge-none { background-color: #CED6E0 !important; color: #57606F !important; }
+    .blade-badge-other { background-color: #747D8C !important; color: #FFFFFF !important; }
+  </style>
+</head>
+<body class="custom-sky-sparkle-bg text-slate-800 font-sans min-h-screen selection:bg-blue-500 selection:text-white pb-16">
+
+  <div id="app">
+
+    <!-- ================= 0. 密碼驗證登入遮罩 ================= -->
+    <div v-if="!isVerified" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+      <div class="bg-white/95 backdrop-blur-md rounded-3xl max-w-sm w-full p-8 space-y-6 shadow-2xl border border-white/60 text-center">
+        <div class="w-52 h-28 mx-auto flex items-center justify-center">
+          <svg class="w-full h-full" viewBox="0 0 460 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="snfLogoGradLogin" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#FF3800" />
+                <stop offset="42%" stop-color="#D80000" />
+                <stop offset="68%" stop-color="#FF5500" />
+                <stop offset="100%" stop-color="#FFA800" />
+              </linearGradient>
+            </defs>
+            <g font-family="Arial Black, Impact, sans-serif" font-weight="900" font-style="italic" font-size="160" fill="url(#snfLogoGradLogin)" letter-spacing="1">
+              <text x="15" y="150">SNF</text>
+            </g>
+            <g font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="48" fill="#000000" letter-spacing="6">
+              <text x="24" y="222">SHANG FUH</text>
+            </g>
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-xl font-black text-slate-900">商富生產進度管理系統</h2>
+          <p class="text-xs text-slate-500 mt-1 font-medium">辦公室管理身分驗證</p>
+        </div>
+        <form @submit.prevent="verifyPassword" class="space-y-4 text-left">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">系統登入密碼</label>
+            <input v-model="passwordInput" type="password" required placeholder="請輸入密碼..." class="w-full px-4 py-2.5 border border-slate-300 rounded-xl font-bold text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <p v-if="loginError" class="text-xs font-bold text-red-600 flex items-center">
+            <i class="fa-solid fa-triangle-exclamation mr-1"></i> {{ loginError }}
+          </p>
+          <button type="submit" :disabled="isCheckingAuth" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-sm rounded-xl shadow-md transition flex items-center justify-center">
+            <i v-if="isCheckingAuth" class="fa-solid fa-circle-notch fa-spin mr-2"></i>
+            {{ isCheckingAuth ? '正在驗證...' : '驗證進入系統' }}
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= 1. 電腦端主工作區 ================= -->
+    <div v-else class="max-w-[1540px] mx-auto p-4 sm:p-6 space-y-5">
+      
+      <!-- 頂部列 -->
+      <header class="flex flex-col sm:flex-row justify-between items-center pb-4 border-b border-white/60 gap-4 bg-white/80 backdrop-blur-md p-4 rounded-3xl shadow-sm">
+        <div class="flex items-center space-x-5">
+          <div class="w-40 h-[90px] flex-shrink-0 flex items-center justify-center">
+            <svg class="w-full h-full drop-shadow-sm" viewBox="0 0 460 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="snfLogoGradMain" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#FF3800" />
+                  <stop offset="42%" stop-color="#D80000" />
+                  <stop offset="68%" stop-color="#FF5500" />
+                  <stop offset="100%" stop-color="#FFA800" />
+                </linearGradient>
+              </defs>
+              <g font-family="Arial Black, Impact, sans-serif" font-weight="900" font-style="italic" font-size="160" fill="url(#snfLogoGradMain)" letter-spacing="1">
+                <text x="15" y="150">SNF</text>
+              </g>
+              <g font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="48" fill="#000000" letter-spacing="6">
+                <text x="24" y="222">SHANG FUH</text>
+              </g>
+            </svg>
+          </div>
+          <div class="border-l-2 border-slate-300 pl-5 py-1">
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">商富生產進度管理系統</h1>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <div class="flex bg-slate-200/80 p-1 rounded-xl shadow-inner">
+            <button @click="currentDesktopTab = 'query'" :class="currentDesktopTab === 'query' ? 'bg-white shadow text-blue-700 font-bold' : 'text-slate-600'" class="px-4 py-1.5 text-xs rounded-lg transition">
+              <i class="fa-solid fa-magnifying-glass mr-1.5"></i> 客戶交期查詢
+            </button>
+            <button @click="currentDesktopTab = 'admin'" :class="currentDesktopTab === 'admin' ? 'bg-white shadow text-blue-700 font-bold' : 'text-slate-600'" class="px-4 py-1.5 text-xs rounded-lg transition">
+              <i class="fa-solid fa-list-check mr-1.5"></i> 生管進度全覽
+            </button>
+          </div>
+
+          <button @click="logout" title="登出系統" class="text-slate-400 hover:text-red-600 p-2.5 text-sm bg-white border border-slate-200 rounded-xl shadow-sm transition">
+            <i class="fa-solid fa-power-off"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- 生產中 / 已入庫 標籤切換 -->
+      <div class="flex bg-white/80 backdrop-blur-md p-1 rounded-2xl w-full sm:w-72 text-xs font-bold shadow-sm border border-white/80">
+        <button @click="switchTab(false)" :class="!showCompletedDesktop ? 'bg-white shadow text-blue-700' : 'text-slate-600'" class="flex-1 py-2 rounded-xl transition text-center flex items-center justify-center">
+          <i class="fa-solid fa-spinner mr-1.5"></i> 生產中 ({{ activeItems.length }} 件)
+        </button>
+        <button @click="switchTab(true)" :class="showCompletedDesktop ? 'bg-white shadow text-emerald-700' : 'text-slate-600'" class="flex-1 py-2 rounded-xl transition text-center flex items-center justify-center">
+          <i class="fa-solid fa-boxes-packing mr-1.5"></i> 已入庫 ({{ archiveItems.length }} 件)
+        </button>
+      </div>
+
+      <!-- 讀取狀態提示 -->
+      <div v-if="isLoading" class="text-center py-10 text-slate-500 font-bold text-xs bg-white/80 rounded-3xl backdrop-blur-md shadow-sm">
+        <i class="fa-solid fa-circle-notch fa-spin text-2xl text-blue-600 block mb-2"></i>
+        正在同步雲端資料庫...
+      </div>
+
+      <!-- ================= 頁面 A：客戶交期查詢 ================= -->
+      <main v-else-if="currentDesktopTab === 'query'" class="space-y-5">
+        <section class="bg-white/85 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-white/80">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-black text-slate-800 flex items-center">
+              <i class="fa-solid fa-magnifying-glass text-blue-600 mr-2"></i> 產品進度查詢 ({{ showCompletedDesktop ? '已入庫封存區' : '生產中' }})
+            </h2>
+            <button v-if="searchBatch || searchSpec" @click="searchBatch = ''; searchSpec = ''" class="text-xs text-blue-600 hover:text-blue-800 font-bold">清除搜尋條件</button>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">生產編號 (例如: 260801)</label>
+              <input v-model.trim="searchBatch" type="text" placeholder="輸入編號篩選..." class="w-full px-3.5 py-2 border border-slate-300 rounded-xl font-bold text-sm bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">產品規格 / 刀片關鍵字 (例如: 40-3D, 桃, 志豪)</label>
+              <input v-model.trim="searchSpec" type="text" placeholder="輸入規格關鍵字..." class="w-full px-3.5 py-2 border border-slate-300 rounded-xl font-bold text-sm bg-white">
+            </div>
+          </div>
+        </section>
+
+        <!-- 查詢結果清單 -->
+        <section v-if="searchBatch || searchSpec" class="space-y-4">
+          <div class="text-xs font-bold text-slate-600 bg-white/70 backdrop-blur-sm inline-block px-3 py-1 rounded-lg">
+            搜尋結果：共找到 {{ matchedDesktopItems.length }} 筆符合條件的工單 (由舊到新排序)
+          </div>
+
+          <div v-for="item in matchedDesktopItems" :key="item.id" 
+               class="bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border overflow-hidden transition"
+               :class="item.isUrgent ? 'border-red-300 ring-1 ring-red-200' : 'border-white/80'">
+            
+            <div class="bg-slate-50/80 px-4 py-3 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
+              <div>
+                <div class="flex items-center space-x-2">
+                  <span class="bg-slate-800 text-white font-mono text-xs font-black px-2 py-0.5 rounded">編號 {{ item.batch }}</span>
+                  <span v-if="item.isUrgent" class="bg-red-600 text-white text-[11px] font-black px-2 py-0.5 rounded">急件</span>
+                  <span v-if="item.isCustom" class="bg-amber-600 text-white text-[11px] font-black px-2 py-0.5 rounded">客戶訂製</span>
+                </div>
+                <h4 class="text-base font-black text-slate-900 mt-1">{{ item.spec }}</h4>
+              </div>
+
+              <div class="flex items-center space-x-2 text-xs">
+                <span :class="getBladeBadgeStyle(item.blade)" class="px-2.5 py-0.5 rounded font-black">
+                  刀片: {{ item.blade || '無' }}
+                </span>
+                <span class="bg-slate-200 text-slate-800 px-2.5 py-0.5 rounded font-bold">
+                  數量: <strong class="text-blue-600">{{ item.qty }}</strong> 支
+                  <span v-if="item.actualQty !== undefined && item.actualQty !== item.qty" class="text-red-600 font-black">
+                    (良品 {{ item.actualQty }} 支)
+                  </span>
+                </span>
+                <span v-if="item.material" class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded border text-[11px]">
+                  素材: {{ item.material }}
+                </span>
+              </div>
+            </div>
+
+            <!-- 完整 9 站圓點進度條 -->
+            <div class="p-4 overflow-x-auto">
+              <div class="min-w-[820px] flex items-center justify-between relative py-2">
+                <div class="absolute top-1/2 left-0 w-full h-1 bg-slate-200 -translate-y-1/2 z-0"></div>
+                <div 
+                  class="absolute top-1/2 left-0 h-1 bg-blue-600 -translate-y-1/2 z-0 transition-all duration-300"
+                  :style="{ width: ((item.currentStep - 1) / (steps.length - 1)) * 100 + '%' }">
+                </div>
+
+                <div v-for="(st, idx) in steps" :key="st" class="relative z-10 flex flex-col items-center">
+                  <div 
+                    :class="[
+                      item.currentStep > (idx + 1) ? 'bg-blue-600 text-white border-blue-600 shadow' : 
+                      item.currentStep === (idx + 1) ? 'bg-amber-500 text-white border-amber-500 ring-4 ring-amber-100 scale-125 shadow-md' : 
+                      'bg-white text-slate-300 border-slate-300'
+                    ]"
+                    class="w-7 h-7 rounded-full flex items-center justify-center border-2 text-[11px] font-black transition-all">
+                    <i v-if="item.currentStep > (idx + 1)" class="fa-solid fa-check"></i>
+                    <span v-else>{{ idx + 1 }}</span>
+                  </div>
+                  <span 
+                    :class="[
+                      item.currentStep === (idx + 1) ? 'font-black text-amber-600 text-xs pt-1' : 
+                      item.currentStep > (idx + 1) ? 'font-bold text-slate-700 text-[11px] pt-1' : 'text-slate-400 text-[11px] pt-1'
+                    ]"
+                    class="mt-1 text-center whitespace-nowrap">
+                    {{ st }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="item.remark" class="px-4 py-2 bg-amber-50/70 border-t border-slate-100 text-xs text-slate-800 flex items-center">
+              <i class="fa-solid fa-circle-info text-amber-600 mr-2 text-sm"></i>
+              <span><strong>備註：</strong>{{ item.remark }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 看板 (生產中專用) -->
+        <section v-if="!showCompletedDesktop && pinnedUrgentAndCustomItems.length > 0" class="bg-amber-50/95 border-2 border-amber-300 rounded-3xl p-4 shadow-sm backdrop-blur-sm">
+          <div class="flex items-center justify-between pb-2 mb-3 border-b border-amber-200">
+            <div class="flex items-center space-x-2">
+              <span class="flex h-3 w-3 relative">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
+              </span>
+              <h3 class="text-sm font-black text-amber-950">現場重點追蹤看板 (急件 / 訂製品)</h3>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div v-for="item in pinnedUrgentAndCustomItems" :key="'flat-' + item.id" class="bg-white border rounded-xl p-3.5 shadow-sm flex flex-col justify-between" :class="item.isUrgent ? 'border-red-300' : 'border-amber-300'">
+              <div class="flex justify-between items-start gap-2">
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs font-mono font-black text-slate-700">編號: {{ item.batch }}</div>
+                  <p class="text-sm font-black text-slate-900 truncate my-1" :title="item.spec">{{ item.spec }}</p>
+                  <div class="flex items-center space-x-2 text-xs text-slate-600">
+                    <span>良品: <strong class="text-slate-900 font-black">{{ item.actualQty !== undefined ? item.actualQty : item.qty }}</strong> 支</span>
+                    <span v-if="getScrapCount(item) > 0" class="text-rose-600 font-bold">(損: {{ getScrapCount(item) }})</span>
+                    <span class="text-slate-300">|</span>
+                    <span>刀片: 
+                      <span :class="getBladeBadgeStyle(item.blade)" class="ml-1 px-1.5 py-0.2 rounded text-[10px] font-black inline-block">
+                        {{ item.blade || '無' }}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                <div class="flex flex-col items-end space-y-1">
+                  <span v-if="item.isUrgent" class="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded">急件</span>
+                  <span v-if="item.isCustom" class="bg-amber-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded">訂製</span>
+                </div>
+              </div>
+
+              <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-3">
+                <span class="text-[11px] text-slate-400 font-bold whitespace-nowrap">目前進度</span>
+                <div class="flex-1 flex items-center space-x-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                  <div v-for="(colorClass, sIdx) in stepColors" :key="sIdx" :class="[item.currentStep >= (sIdx + 1) ? colorClass : 'bg-slate-200 opacity-60', item.currentStep === (sIdx + 1) ? 'ring-1 ring-slate-900/40 shadow-sm' : '']" class="h-2.5 flex-1 rounded-sm transition-all duration-300" :title="steps[sIdx]"></div>
+                </div>
+                <span class="text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap">{{ steps[item.currentStep - 1] }}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- ================= 頁面 B：生管進度管理 (大表格) ================= -->
+      <section v-else-if="currentDesktopTab === 'admin'" class="space-y-4">
+        <div class="bg-white/85 backdrop-blur-md p-3 rounded-2xl shadow-sm border border-white/80 flex flex-wrap justify-between items-center gap-3">
+          <div class="flex items-center space-x-2">
+            <label v-if="!showCompletedDesktop" class="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow flex items-center transition">
+              <i class="fa-solid fa-file-excel mr-1.5"></i> 匯入進料單 Excel (多Sheet)
+              <input type="file" accept=".xlsx, .xls, .csv" @change="handleFileUpload" class="hidden">
+            </label>
+            <button v-if="!showCompletedDesktop" @click="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow flex items-center transition">
+              <i class="fa-solid fa-plus mr-1.5"></i> 手動建單
+            </button>
+            <button @click="fetchCurrentData(true)" class="text-xs font-bold text-slate-600 bg-white/80 hover:bg-white px-3 py-1.5 rounded-xl border border-slate-200 flex items-center transition">
+              <i class="fa-solid fa-rotate mr-1.5" :class="{'fa-spin': isLoading}"></i> 重新載入
+            </button>
+          </div>
+
+          <!-- 篩選編號 -->
+          <div class="flex items-center space-x-2">
+            <select v-model="adminFilterBatch" class="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold bg-white/90">
+              <option value="">全部編號 ({{ currentDesktopTabItems.length }} 筆)</option>
+              <option v-for="b in availableBatches" :key="b" :value="b">編號 {{ b }}</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 表格容器 -->
+        <div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-sm border border-white/80 overflow-hidden">
+          <div class="overflow-x-auto max-h-[calc(100vh-230px)] overflow-y-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="border-b border-slate-200 text-slate-700 font-bold uppercase text-[11px] sticky top-0 z-20 sticky-header-shadow">
+                <tr class="bg-slate-100">
+                  <th class="p-3 whitespace-nowrap bg-slate-100">編號</th>
+                  <th class="p-3 min-w-[180px] bg-slate-100">規格</th>
+                  <th class="p-3 whitespace-nowrap text-center bg-slate-100">刀片</th>
+                  <th class="p-3 text-center whitespace-nowrap bg-slate-100">預計 / 目前良品</th>
+                  <th class="p-2 text-center bg-slate-200/90 whitespace-nowrap" v-for="st in steps" :key="st">{{ st }}</th>
+                  <th class="p-3 min-w-[120px] bg-slate-100">備註說明</th>
+                  <th class="p-3 text-center whitespace-nowrap bg-slate-100">操作</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr v-for="item in filteredAdminItems" :key="item.id" 
+                    class="transition"
+                    :class="item.isUrgent ? 'bg-red-50/50' : item.isCustom ? 'bg-amber-50/40' : (hasScrap(item) ? 'bg-rose-50/20 hover:bg-rose-50/40' : 'hover:bg-slate-50/80')">
+                  
+                  <td class="p-3 font-mono font-black text-blue-700 whitespace-nowrap">{{ item.batch }}</td>
+                  <td class="p-3 font-bold text-slate-900">
+                    <div class="flex items-center flex-wrap gap-1">
+                      <span>{{ item.spec }}</span>
+                      <span v-if="item.isUrgent" class="px-1.5 py-0.2 rounded text-[10px] font-black bg-red-600 text-white">急</span>
+                      <span v-if="item.isCustom" class="px-1.5 py-0.2 rounded text-[10px] font-black bg-amber-500 text-white">訂製</span>
+                    </div>
+                  </td>
+                  <td class="p-3 text-center whitespace-nowrap">
+                    <span :class="getBladeBadgeStyle(item.blade)" class="px-2 py-0.5 rounded text-[11px] font-black inline-block">
+                      {{ item.blade || '-' }}
+                    </span>
+                  </td>
+                  
+                  <!-- 預計 / 目前良品 (動態即時扣除) -->
+                  <td class="p-3 text-center whitespace-nowrap">
+                    <div class="font-black text-slate-900 text-sm">
+                      {{ item.actualQty !== undefined ? item.actualQty : item.qty }} 支
+                    </div>
+                    <div v-if="getScrapCount(item) > 0" class="text-[11px] text-rose-600 font-bold">
+                      原: {{ item.qty }} (損: -{{ getScrapCount(item) }})
+                    </div>
+                  </td>
+                  
+                  <!-- 9 站矩陣點擊 -->
+                  <td 
+                    v-for="(st, sIdx) in steps" 
+                    :key="st" 
+                    @click.stop="handleStepCellClick(item, sIdx + 1, st)" 
+                    class="p-2 text-center cursor-pointer select-none transition border-x border-slate-100 relative"
+                    :class="[
+                      isStepScrapped(item, st) ? 'bg-rose-100/90 hover:bg-rose-200 text-rose-700 font-black' :
+                      item.currentStep >= (sIdx + 1) ? 'bg-blue-50/80 hover:bg-blue-100' : 'hover:bg-slate-100'
+                    ]"
+                    :title="isStepScrapped(item, st) ? '⚠ 此站有做壞紀錄！點擊以查詢原因' : (item.currentStep === 9 && (sIdx + 1) < 9 ? '點擊此站別以【撤銷入庫】並救回生產中' : '點擊推進至：' + st)">
+                    
+                    <div v-if="isStepScrapped(item, st)" class="flex flex-col items-center justify-center">
+                      <span class="inline-flex items-center px-1 py-0.5 rounded bg-rose-600 text-white text-[9px] font-black shadow-sm">
+                        <i class="fa-solid fa-triangle-exclamation mr-0.5"></i> 做壞
+                      </span>
+                      <span v-if="item.currentStep === (sIdx + 1)" class="text-[9px] text-amber-700 font-bold mt-0.5">進行中</span>
+                    </div>
+
+                    <span v-else-if="item.currentStep === (sIdx + 1)" class="inline-block px-1.5 py-0.2 rounded bg-amber-500 text-white font-black text-[10px]">進行中</span>
+                    <i v-else-if="item.currentStep > (sIdx + 1)" class="fa-solid fa-check text-blue-600 text-xs"></i>
+                    <span v-else class="text-slate-300">•</span>
+                  </td>
+
+                  <td class="p-3 text-slate-600 text-xs" :title="item.remark">{{ item.remark || '-' }}</td>
+                  
+                  <!-- 操作欄位 -->
+                  <td class="p-3 text-center whitespace-nowrap space-x-1">
+                    <button @click.stop="openScrapModal(item)" class="text-rose-500 hover:text-rose-700 p-1" title="登錄此工單報廢/做壞"><i class="fa-solid fa-triangle-exclamation"></i></button>
+                    <button @click.stop="openModal(item)" class="text-slate-500 hover:text-blue-600 p-1" title="編輯工單"><i class="fa-regular fa-pen-to-square"></i></button>
+                    <button @click.stop="deleteItem(item.id)" class="text-slate-400 hover:text-red-600 p-1" title="刪除工單"><i class="fa-regular fa-trash-can"></i></button>
+                  </td>
+                </tr>
+
+                <tr v-if="filteredAdminItems.length === 0">
+                  <td :colspan="6 + steps.length" class="p-8 text-center text-slate-400 font-bold">
+                    {{ showCompletedDesktop ? '已入庫記錄中暫無資料' : '目前尚無生產中的工單' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ================= 2. 手動新增/編輯工單項目彈窗 ================= -->
+    <div v-if="showEditModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border text-left">
+        <div class="flex justify-between items-center border-b pb-3">
+          <h3 class="text-base font-black text-slate-800">{{ editingItem.id ? '編輯工單項目' : '手動新增工單項目' }}</h3>
+          <button @click="showEditModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <label class="block font-bold text-slate-600 mb-1">生產編號 (YYMMDD) *</label>
+            <input v-model="editingItem.batch" type="text" placeholder="例: 260801" class="w-full border p-2 rounded-lg font-bold">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-600 mb-1">規格名稱 *</label>
+            <input v-model="editingItem.spec" type="text" placeholder="例: 21-5D-32" class="w-full border p-2 rounded-lg font-bold">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-600 mb-1">刀片種類 (桃、四角、WDX、TT...)</label>
+            <input v-model="editingItem.blade" type="text" placeholder="例: 桃" class="w-full border p-2 rounded-lg font-bold">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-600 mb-1">預計生產數量 *</label>
+            <input v-model.number="editingItem.qty" type="number" min="1" class="w-full border p-2 rounded-lg font-bold">
+          </div>
+          <div class="col-span-2">
+            <label class="block font-bold text-slate-600 mb-1">素材尺寸</label>
+            <input v-model="editingItem.material" type="text" placeholder="例: 36X138L" class="w-full border p-2 rounded-lg">
+          </div>
+          <div class="col-span-2">
+            <label class="block font-bold text-slate-600 mb-1">備註說明</label>
+            <textarea v-model="editingItem.remark" rows="2" placeholder="備註內容..." class="w-full border p-2 rounded-lg"></textarea>
+          </div>
+
+          <div class="col-span-2 bg-slate-50 p-3 rounded-2xl border border-slate-200 flex items-center justify-around">
+            <label class="flex items-center cursor-pointer font-bold text-red-600 select-none">
+              <input v-model="editingItem.isUrgent" type="checkbox" class="w-4 h-4 text-red-600 rounded mr-2"> 
+              🚨 急件 / 低庫存
+            </label>
+            <label class="flex items-center cursor-pointer font-bold text-amber-700 select-none">
+              <input v-model="editingItem.isCustom" type="checkbox" class="w-4 h-4 text-amber-600 rounded mr-2"> 
+              ⭐ 客戶訂製品
+            </label>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t">
+          <button @click="showEditModal = false" class="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600">取消</button>
+          <button @click="saveItem" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow">儲存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 3. 入庫確認彈窗 ================= -->
+    <div v-if="showStockModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-left border">
+        <div class="text-center pb-2 border-b">
+          <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-1 text-lg">
+            <i class="fa-solid fa-boxes-stacked"></i>
+          </div>
+          <h4 class="text-base font-black text-slate-900">確認入庫與良品數量</h4>
+          <p class="text-xs text-slate-500 font-bold mt-0.5">【{{ stockTargetItem.batch }}】{{ stockTargetItem.spec }}</p>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-bold text-slate-500 mb-1">預計生產總數</label>
+              <div class="p-2 bg-slate-100 rounded-xl font-bold text-slate-600 text-center">{{ stockTargetItem.qty }} 支</div>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">目前良品總數</label>
+              <div class="p-2 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700 text-center">{{ calculateGoodQty(stockTargetItem) }} 支</div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-800 mb-1">實際入庫良品數 (系統已自動扣減損耗) *</label>
+            <input v-model.number="stockActualQty" type="number" min="0" :max="stockTargetItem.qty" class="w-full border-2 border-emerald-500 p-2.5 rounded-xl font-black text-lg text-slate-900 focus:outline-none text-center">
+          </div>
+
+          <div v-if="getScrapRecords(stockTargetItem).length > 0" class="bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-1.5">
+            <div class="font-black text-rose-800 text-[11px] flex items-center">
+              <i class="fa-solid fa-triangle-exclamation mr-1"></i> 前期站別做壞損耗紀錄：
+            </div>
+            <div v-for="(rec, rIdx) in getScrapRecords(stockTargetItem)" :key="rIdx" class="text-[11px] text-rose-700 pl-2 border-l-2 border-rose-400">
+              在【{{ rec.step }}】由 <strong>{{ rec.operator }}</strong> 損耗 {{ rec.scrapQty }} 支 (原因: {{ rec.reason }})
+            </div>
+          </div>
+        </div>
+
+        <div class="flex space-x-2 pt-2">
+          <button @click="showStockModal = false" :disabled="isSubmitting" class="flex-1 py-2.5 border rounded-xl font-bold text-xs text-slate-600">取消</button>
+          <button @click="confirmStockIn" :disabled="isSubmitting" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs shadow flex items-center justify-center">
+            <i v-if="isSubmitting" class="fa-solid fa-circle-notch fa-spin mr-1"></i>
+            {{ isSubmitting ? '處理中...' : '確認入庫並歸檔' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 4. 精準工單報廢登錄彈窗 ================= -->
+    <div v-if="showScrapModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border text-left">
+        <div class="flex justify-between items-center border-b pb-3">
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-sm font-bold">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-black text-slate-800">登錄工單做壞 / 損耗</h3>
+              <p class="text-[11px] text-slate-500 font-bold">已鎖定工單項目，不可竄改</p>
+            </div>
+          </div>
+          <button @click="showScrapModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <form @submit.prevent="submitScrapRecord" class="space-y-3 text-xs">
+          <div class="p-3 bg-slate-100 rounded-xl border space-y-1">
+            <div class="flex justify-between font-mono font-bold text-slate-600">
+              <span>編號：<strong class="text-slate-900">{{ currentScrapTargetItem.batch }}</strong></span>
+              <span>刀片：<strong class="text-slate-900">{{ currentScrapTargetItem.blade || '無' }}</strong></span>
+            </div>
+            <div class="font-black text-slate-900 text-sm">
+              規格：{{ currentScrapTargetItem.spec }}
+            </div>
+            <div class="text-[11px] text-slate-500">
+              目前剩餘良品：<strong class="text-emerald-700 font-black">{{ calculateGoodQty(currentScrapTargetItem) }}</strong> 支
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-600 mb-1">發生站別 *</label>
+              <select v-model="scrapForm.step" class="w-full border p-2 rounded-lg font-bold bg-white" required>
+                <option v-for="st in steps" :key="st" :value="st">{{ st }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-600 mb-1">損耗數量 (支) *</label>
+              <input v-model.number="scrapForm.scrapQty" type="number" min="1" :max="calculateGoodQty(currentScrapTargetItem)" required class="w-full border-2 border-rose-400 p-2 rounded-lg font-black text-rose-700">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-600 mb-1">操作人員 *</label>
+              <input v-model.trim="scrapForm.operator" type="text" required placeholder="例: 王小明" class="w-full border p-2 rounded-lg font-bold">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-600 mb-1">做壞原因 *</label>
+              <input v-model.trim="scrapForm.reason" type="text" required placeholder="例: 尺寸車過頭 / 夾爪鬆動" class="w-full border p-2 rounded-lg font-bold">
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-600 mb-1">詳細說明</label>
+            <textarea v-model.trim="scrapForm.detail" rows="2" placeholder="詳細描述做壞情況..." class="w-full border p-2 rounded-lg"></textarea>
+          </div>
+
+          <div class="flex justify-end space-x-2 pt-2 border-t">
+            <button type="button" @click="showScrapModal = false" :disabled="isSubmittingScrap" class="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600">取消</button>
+            <button type="submit" :disabled="isSubmittingScrap" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow flex items-center">
+              <i v-if="isSubmittingScrap" class="fa-solid fa-circle-notch fa-spin mr-1.5"></i>
+              {{ isSubmittingScrap ? '記錄寫入中...' : '確認登錄並扣減數量' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= 5. 做壞原因查詢浮動視窗 ================= -->
+    <div v-if="showScrapQueryModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border text-left">
+        <div class="flex justify-between items-center border-b pb-3">
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-full bg-rose-600 text-white flex items-center justify-center text-sm font-bold shadow">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-black text-slate-900">站別做壞詳細資訊</h3>
+              <p class="text-[11px] text-slate-400">【{{ queryScrapTarget.step }}】異常紀錄</p>
+            </div>
+          </div>
+          <button @click="showScrapQueryModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div class="p-3 bg-slate-50 rounded-xl space-y-1">
+            <div class="font-mono text-slate-500 font-bold">工單編號：{{ queryScrapTarget.batch }}</div>
+            <div class="text-sm font-black text-slate-900">規格：{{ queryScrapTarget.spec }}</div>
+          </div>
+
+          <div class="space-y-2">
+            <div v-for="(rec, idx) in queryScrapTarget.records" :key="idx" class="p-3 border border-rose-200 bg-rose-50/60 rounded-xl space-y-1">
+              <div class="flex justify-between font-black text-rose-900">
+                <span>操作人員：{{ rec.operator }}</span>
+                <span>損耗：<strong class="text-rose-600">{{ rec.scrapQty }}</strong> 支</span>
+              </div>
+              <div class="text-slate-700"><strong>做壞原因：</strong>{{ rec.reason }}</div>
+              <div v-if="rec.detail" class="text-slate-500 text-[11px]"><strong>詳細說明：</strong>{{ rec.detail }}</div>
+              <div class="text-[10px] text-slate-400 text-right">{{ rec.time }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t">
+          <button @click="showScrapQueryModal = false" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs shadow">關閉視窗</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const API_URL = 'https://script.google.com/macros/s/AKfycbw7xoMPCwINwKSZyvH2-8QsEnOqtpsvXy68666qYalCO4hqsSp0eVkA4HHpkGfkNlVN/exec';
+
+        const currentDesktopTab = ref('admin');
+        const isVerified = ref(false);
+        const passwordInput = ref('');
+        const loginError = ref('');
+        const isCheckingAuth = ref(false);
+        const isLoading = ref(false);
+        const isSubmitting = ref(false);
+
+        const activeItems = ref([]);
+        const archiveItems = ref([]);
+        const showCompletedDesktop = ref(false);
+
+        const searchBatch = ref('');
+        const searchSpec = ref('');
+        const adminFilterBatch = ref('');
+
+        const showEditModal = ref(false);
+        const editingItem = ref({});
+
+        const showStockModal = ref(false);
+        const stockTargetItem = ref({});
+        const stockActualQty = ref(0);
+
+        const showScrapModal = ref(false);
+        const isSubmittingScrap = ref(false);
+        const currentScrapTargetItem = ref({});
+        const scrapForm = ref({
+          step: '物料區',
+          scrapQty: 1,
+          operator: '',
+          reason: '',
+          detail: ''
+        });
+
+        const showScrapQueryModal = ref(false);
+        const queryScrapTarget = ref({ step: '', batch: '', spec: '', records: [] });
+
+        const steps = ['物料區', '車床完成', '銑溝完成', '刀片座完成', '等待熱處理', '熱處理完成', '等待研磨', '電鍍/染黑', '入庫'];
+        const stepColors = ['bg-slate-500', 'bg-sky-500', 'bg-teal-500', 'bg-emerald-500', 'bg-amber-400', 'bg-orange-500', 'bg-purple-500', 'bg-indigo-600', 'bg-cyan-600'];
+
+        const getItemKey = (item) => {
+          if (item.id && String(item.id).trim() !== '') return String(item.id).trim();
+          return `${String(item.batch || '').trim()}_${String(item.spec || '').trim()}`;
+        };
+
+        const generateUID = (idx = 0) => {
+          return `${Date.now()}_${Math.random().toString(36).substr(2, 7)}_${idx}`;
+        };
+
+        const getScrapRecords = (item) => {
+          if (!item) return [];
+          if (Array.isArray(item.scrapHistory)) return item.scrapHistory;
+          try {
+            if (typeof item.scrapHistory === 'string' && item.scrapHistory.trim() !== '') {
+              return JSON.parse(item.scrapHistory);
+            }
+          } catch(e) {}
+          return [];
+        };
+
+        const getScrapCount = (item) => {
+          const list = getScrapRecords(item);
+          return list.reduce((sum, r) => sum + (Number(r.scrapQty) || 0), 0);
+        };
+
+        const calculateGoodQty = (item) => {
+          if (!item) return 0;
+          const original = Number(item.qty) || 0;
+          const scrap = getScrapCount(item);
+          return Math.max(0, original - scrap);
+        };
+
+        const isStepScrapped = (item, stepName) => {
+          const list = getScrapRecords(item);
+          return list.some(r => r.step === stepName);
+        };
+
+        const hasScrap = (item) => {
+          return getScrapRecords(item).length > 0;
+        };
+
+        const enforceMutualExclusion = (priority = 'active') => {
+          if (priority === 'archive') {
+            const archiveKeys = new Set(archiveItems.value.map(getItemKey));
+            activeItems.value = activeItems.value.filter(i => !archiveKeys.has(getItemKey(i)));
+          } else {
+            const activeKeys = new Set(activeItems.value.map(getItemKey));
+            archiveItems.value = archiveItems.value.filter(i => !activeKeys.has(getItemKey(i)));
+          }
+        };
+
+        const sanitizeItems = (rawList, expectedStepCondition) => {
+          const seen = new Set();
+          const list = [];
+          (rawList || []).forEach((it, idx) => {
+            if (!it.batch && !it.spec) return;
+
+            const id = it.id ? String(it.id) : generateUID(idx);
+            const item = {
+              ...it,
+              id: id,
+              batch: String(it.batch || '').trim(),
+              spec: String(it.spec || '').trim(),
+              qty: Number(it.qty) || 1,
+              actualQty: it.actualQty !== undefined ? Number(it.actualQty) : (Number(it.qty) || 1),
+              currentStep: Number(it.currentStep) || 1,
+              isUrgent: Boolean(it.isUrgent),
+              isCustom: Boolean(it.isCustom),
+              scrapHistory: it.scrapHistory ? (typeof it.scrapHistory === 'string' ? JSON.parse(it.scrapHistory || '[]') : it.scrapHistory) : []
+            };
+
+            item.actualQty = calculateGoodQty(item);
+
+            const key = getItemKey(item);
+            if (!seen.has(key)) {
+              seen.add(key);
+              if (expectedStepCondition ? expectedStepCondition(item.currentStep) : true) {
+                list.push(item);
+              }
+            }
+          });
+          return list;
+        };
+
+        onMounted(() => {
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+          } catch(e) {}
+          isVerified.value = false;
+        });
+
+        const verifyPassword = async () => {
+          loginError.value = '';
+          isCheckingAuth.value = true;
+          try {
+            const res = await fetch(`${API_URL}?action=check_auth&type=office&pwd=${encodeURIComponent(passwordInput.value)}`);
+            const json = await res.json();
+            if (json.status === 'success' && json.verified) {
+              isVerified.value = true;
+              fetchAllData();
+            } else {
+              loginError.value = '密碼錯誤，請重新確認！';
+            }
+          } catch (e) {
+            console.error('驗證失敗', e);
+            loginError.value = '無法連線驗證伺服器，請確認網路！';
+          } finally {
+            isCheckingAuth.value = false;
+          }
+        };
+
+        const logout = () => {
+          isVerified.value = false;
+          passwordInput.value = '';
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+          } catch(e) {}
+        };
+
+        const fetchAllData = async () => {
+          isLoading.value = true;
+          try {
+            const [resActive, resArchive] = await Promise.allSettled([
+              fetch(API_URL).then(r => r.json()),
+              fetch(`${API_URL}?action=get_archive`).then(r => r.json())
+            ]);
+
+            if (resArchive.status === 'fulfilled' && resArchive.value?.status === 'success') {
+              archiveItems.value = sanitizeItems(resArchive.value.data, step => step === 9);
+            }
+            if (resActive.status === 'fulfilled' && resActive.value?.status === 'success') {
+              activeItems.value = sanitizeItems(resActive.value.data, step => step < 9);
+            }
+
+            enforceMutualExclusion('archive');
+          } catch (e) {
+            console.warn('同步雲端失敗', e);
+          } finally {
+            isLoading.value = false;
+          }
+        };
+
+        const switchTab = (isArchive) => {
+          showCompletedDesktop.value = isArchive;
+          if ((isArchive && archiveItems.value.length === 0) || (!isArchive && activeItems.value.length === 0)) {
+            fetchAllData();
+          }
+        };
+
+        const fetchCurrentData = (force = false) => {
+          fetchAllData();
+        };
+
+        const syncItemToSheet = async (action, payload) => {
+          try {
+            await fetch(API_URL, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({ action: action, ...payload })
+            });
+          } catch (e) {
+            console.error('同步失敗', e);
+          }
+        };
+
+        const currentDesktopTabItems = computed(() => {
+          return showCompletedDesktop.value ? archiveItems.value : activeItems.value;
+        });
+
+        const availableBatches = computed(() => {
+          return Array.from(new Set(currentDesktopTabItems.value.map(i => i.batch)))
+            .filter(Boolean)
+            .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+        });
+
+        const pinnedUrgentAndCustomItems = computed(() => {
+          return activeItems.value
+            .filter(i => (i.isUrgent || i.isCustom) && i.currentStep < 9)
+            .sort((a, b) => String(a.batch || '').localeCompare(String(b.batch || ''), undefined, { numeric: true }));
+        });
+
+        const matchedDesktopItems = computed(() => {
+          if (!searchBatch.value && !searchSpec.value) return [];
+          const list = currentDesktopTabItems.value.filter(i => {
+            const matchB = !searchBatch.value || String(i.batch).includes(searchBatch.value);
+            const matchS = !searchSpec.value || String(i.spec).includes(searchSpec.value) || String(i.blade).includes(searchSpec.value);
+            return matchB && matchS;
+          });
+
+          return list.sort((a, b) => {
+            const bComp = String(a.batch || '').localeCompare(String(b.batch || ''), undefined, { numeric: true });
+            if (bComp !== 0) return bComp;
+            return String(a.spec || '').localeCompare(String(b.spec || ''));
+          });
+        });
+
+        const filteredAdminItems = computed(() => {
+          const list = currentDesktopTabItems.value.filter(i => {
+            if (adminFilterBatch.value && i.batch !== adminFilterBatch.value) return false;
+            return true;
+          });
+
+          return list.sort((a, b) => {
+            const batchCompare = String(a.batch || '').localeCompare(String(b.batch || ''), undefined, { numeric: true });
+            if (batchCompare !== 0) return batchCompare;
+            return String(a.spec || '').localeCompare(String(b.spec || ''));
+          });
+        });
+
+        const handleStepCellClick = (item, stepNum, stepName) => {
+          if (isStepScrapped(item, stepName)) {
+            const records = getScrapRecords(item).filter(r => r.step === stepName);
+            queryScrapTarget.value = {
+              step: stepName,
+              batch: item.batch,
+              spec: item.spec,
+              records: records
+            };
+            showScrapQueryModal.value = true;
+          } else {
+            updateStep(item, stepNum);
+          }
+        };
+
+        const updateStep = (item, stepNum) => {
+          if (!item || isSubmitting.value) return;
+
+          if (stepNum === 9) {
+            stockTargetItem.value = item;
+            stockActualQty.value = calculateGoodQty(item);
+            showStockModal.value = true;
+            return;
+          }
+
+          if (item.currentStep === 9 && stepNum < 9) {
+            if (confirm(`確定要撤銷【${item.spec}】的入庫狀態，並救回生產中【${steps[stepNum - 1]}】？`)) {
+              item.currentStep = stepNum;
+              const targetKey = getItemKey(item);
+
+              archiveItems.value = archiveItems.value.filter(i => getItemKey(i) !== targetKey);
+              activeItems.value = activeItems.value.filter(i => getItemKey(i) !== targetKey);
+              activeItems.value.push({ ...item });
+
+              syncItemToSheet('save', { item: item });
+            }
+            return;
+          }
+
+          item.currentStep = stepNum;
+          syncItemToSheet('save', { item: item });
+        };
+
+        const confirmStockIn = async () => {
+          const item = stockTargetItem.value;
+          if (!item || !item.id || isSubmitting.value) return;
+
+          isSubmitting.value = true;
+          try {
+            item.actualQty = Number(stockActualQty.value) || 0;
+            item.currentStep = 9;
+            const targetKey = getItemKey(item);
+
+            activeItems.value = activeItems.value.filter(i => getItemKey(i) !== targetKey);
+            archiveItems.value = archiveItems.value.filter(i => getItemKey(i) !== targetKey);
+            archiveItems.value.push({ ...item });
+
+            await syncItemToSheet('save', { item: item });
+            showStockModal.value = false;
+          } finally {
+            isSubmitting.value = false;
+          }
+        };
+
+        const openScrapModal = (item) => {
+          if (!item) return;
+          currentScrapTargetItem.value = item;
+          scrapForm.value = {
+            step: steps[item.currentStep - 1] || '物料區',
+            scrapQty: 1,
+            operator: '',
+            reason: '',
+            detail: ''
+          };
+          showScrapModal.value = true;
+        };
+
+        const submitScrapRecord = async () => {
+          const item = currentScrapTargetItem.value;
+          if (!item || !scrapForm.value.operator || !scrapForm.value.reason) {
+            alert('請完整填寫操作人員與做壞原因！');
+            return;
+          }
+
+          const goodQty = calculateGoodQty(item);
+          if (scrapForm.value.scrapQty > goodQty) {
+            alert(`做壞數量不能大於目前良品數 (${goodQty} 支)！`);
+            return;
+          }
+
+          isSubmittingScrap.value = true;
+          const now = new Date();
+          const recordTime = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+          const newRecord = {
+            time: recordTime,
+            step: scrapForm.value.step,
+            scrapQty: Number(scrapForm.value.scrapQty) || 1,
+            operator: scrapForm.value.operator,
+            reason: scrapForm.value.reason,
+            detail: scrapForm.value.detail
+          };
+
+          try {
+            if (!item.scrapHistory) item.scrapHistory = [];
+            item.scrapHistory.push(newRecord);
+            item.actualQty = calculateGoodQty(item);
+
+            await syncItemToSheet('scrap_record', {
+              record: {
+                id: item.id,
+                batch: item.batch,
+                spec: item.spec,
+                blade: item.blade,
+                step: newRecord.step,
+                scrapQty: newRecord.scrapQty,
+                operator: newRecord.operator,
+                reason: newRecord.reason,
+                detail: newRecord.detail
+              }
+            });
+
+            syncItemToSheet('save', {
+              item: {
+                ...item,
+                scrapHistory: JSON.stringify(item.scrapHistory)
+              }
+            });
+
+            alert(`工單【${item.spec}】在【${newRecord.step}】做壞 ${newRecord.scrapQty} 支已完成登錄！目前良品更新為 ${item.actualQty} 支。`);
+            showScrapModal.value = false;
+          } catch(e) {
+            console.error('報廢登錄失敗', e);
+            alert('登錄報廢失敗，請檢查網路連線！');
+          } finally {
+            isSubmittingScrap.value = false;
+          }
+        };
+
+        const openModal = (item = null) => {
+          if (item) {
+            editingItem.value = JSON.parse(JSON.stringify(item));
+          } else {
+            editingItem.value = {
+              id: null,
+              batch: availableBatches.value[0] || '',
+              spec: '',
+              blade: '桃',
+              qty: 1,
+              actualQty: 1,
+              material: '',
+              remark: '',
+              currentStep: 1,
+              isUrgent: false,
+              isCustom: false,
+              scrapHistory: []
+            };
+          }
+          showEditModal.value = true;
+        };
+
+        const saveItem = () => {
+          if (!editingItem.value.batch || !editingItem.value.spec) {
+            alert('生產編號與規格名稱為必填！');
+            return;
+          }
+          
+          const isArchive = editingItem.value.currentStep === 9;
+          const targetList = isArchive ? archiveItems : activeItems;
+          const otherList = isArchive ? activeItems : archiveItems;
+
+          let target;
+          if (editingItem.value.id) {
+            editingItem.value.id = String(editingItem.value.id);
+            const targetKey = getItemKey(editingItem.value);
+
+            otherList.value = otherList.value.filter(i => getItemKey(i) !== targetKey);
+
+            const idx = targetList.value.findIndex(i => getItemKey(i) === targetKey);
+            if (idx !== -1) {
+              targetList.value[idx] = { ...editingItem.value };
+              target = targetList.value[idx];
+            } else {
+              target = { ...editingItem.value };
+              targetList.value.unshift(target);
+            }
+          } else {
+            editingItem.value.id = generateUID();
+            target = { ...editingItem.value };
+            targetList.value.unshift(target);
+            otherList.value = otherList.value.filter(i => getItemKey(i) !== getItemKey(target));
+          }
+
+          syncItemToSheet('save', { item: target });
+          showEditModal.value = false;
+        };
+
+        const deleteItem = (id) => {
+          if (!confirm('確定刪除此工單？')) return;
+          const targetId = String(id);
+          activeItems.value = activeItems.value.filter(i => String(i.id) !== targetId);
+          archiveItems.value = archiveItems.value.filter(i => String(i.id) !== targetId);
+          syncItemToSheet('delete', { id: targetId });
+        };
+
+        const handleFileUpload = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = async (evt) => {
+            try {
+              const data = new Uint8Array(evt.target.result);
+              const workbook = XLSX.read(data, { type: 'array' });
+              const allNewItems = [];
+              const sheetSummary = [];
+
+              workbook.SheetNames.forEach((sheetName) => {
+                const worksheet = workbook.Sheets[sheetName];
+                const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                if (!rawData || rawData.length === 0) return;
+
+                let sheetBatch = sheetName.match(/\b\d{6}\b/)?.[0] || '';
+                if (!sheetBatch) {
+                  for (let r = 0; r < Math.min(6, rawData.length); r++) {
+                    const rowText = (rawData[r] || []).join(' ');
+                    const match = rowText.match(/(?:編號[：:]?|\b)(\d{6})\b/);
+                    if (match && match[1]) {
+                      sheetBatch = match[1];
+                      break;
+                    }
+                  }
+                }
+                if (!sheetBatch) {
+                  sheetBatch = file.name.match(/\b\d{6}\b/)?.[0] || sheetName;
+                }
+
+                let headerRowIndex = rawData.findIndex(row => Array.isArray(row) && row.some(cell => String(cell || '').includes('規格')));
+                let dataRows = [];
+                let specCol = 0, bladeCol = 1, matCol = 2, qtyCol = 3, remarkCol = 4, batchCol = -1;
+
+                if (headerRowIndex !== -1) {
+                  const header = rawData[headerRowIndex].map(c => String(c || '').trim());
+                  specCol = header.findIndex(h => h.includes('規格'));
+                  bladeCol = header.findIndex(h => h.includes('刀片'));
+                  matCol = header.findIndex(h => h.includes('素材') || h.includes('尺寸'));
+                  qtyCol = header.findIndex(h => h.includes('數量') || h.includes('預計'));
+                  remarkCol = header.findIndex(h => h.includes('備註'));
+                  batchCol = header.findIndex(h => h.includes('編號') || h.includes('批號'));
+
+                  if (specCol === -1) specCol = 0;
+                  if (bladeCol === -1) bladeCol = 1;
+                  if (matCol === -1) matCol = 2;
+                  if (qtyCol === -1) qtyCol = 3;
+                  if (remarkCol === -1) remarkCol = 4;
+
+                  dataRows = rawData.slice(headerRowIndex + 1);
+                } else {
+                  dataRows = rawData.slice(1);
+                }
+
+                let sheetCount = 0;
+                dataRows.forEach((r, rowIdx) => {
+                  if (!r || r[specCol] === undefined || String(r[specCol]).trim() === '') return;
+                  const specVal = String(r[specCol] || '').trim();
+                  if (specVal === '合計' || specVal === '總計' || specVal === '規格') return;
+
+                  const rowBatch = (batchCol !== -1 && r[batchCol]) ? String(r[batchCol]).trim() : sheetBatch;
+                  const bladeVal = bladeCol !== -1 ? String(r[bladeCol] || '').trim() : '';
+                  const matVal = matCol !== -1 ? String(r[matCol] || '').trim() : '';
+                  const qtyVal = qtyCol !== -1 ? (Number(r[qtyCol]) || 1) : 1;
+                  const remarkVal = remarkCol !== -1 ? String(r[remarkCol] || '').trim() : '';
+
+                  const newItem = {
+                    id: generateUID(allNewItems.length + rowIdx),
+                    batch: rowBatch,
+                    spec: specVal,
+                    blade: bladeVal,
+                    material: matVal,
+                    qty: qtyVal,
+                    actualQty: qtyVal,
+                    remark: remarkVal,
+                    currentStep: 1,
+                    isUrgent: false,
+                    isCustom: specVal.includes('訂製') || remarkVal.includes('照圖') || specVal.includes('志豪') || specVal.includes('松欣'),
+                    scrapHistory: []
+                  };
+
+                  allNewItems.push(newItem);
+                  sheetCount++;
+                });
+
+                if (sheetCount > 0) {
+                  sheetSummary.push(`【${sheetName}】編號 ${sheetBatch}：${sheetCount} 筆`);
+                }
+              });
+
+              if (allNewItems.length > 0) {
+                const existingKeys = new Set(activeItems.value.map(getItemKey));
+                const uniqueNewItems = allNewItems.filter(it => !existingKeys.has(getItemKey(it)));
+
+                activeItems.value.unshift(...uniqueNewItems);
+                enforceMutualExclusion('active');
+
+                await syncItemToSheet('batch_save', { items: uniqueNewItems });
+                alert(`Excel 多工作表匯入完成！共掃描 ${workbook.SheetNames.length} 個工作表，成功匯入 ${uniqueNewItems.length} 筆資料：\n\n` + sheetSummary.join('\n'));
+              } else {
+                alert('未在 Excel 檔案中找到可匯入的規格工單資料！');
+              }
+            } catch (err) {
+              console.error('Excel 解析失敗', err);
+              alert('解析 Excel 失敗，請確認檔案格式！');
+            } finally {
+              e.target.value = '';
+            }
+          };
+          reader.readAsArrayBuffer(file);
+        };
+
+        // 刀片種類高識別度專屬配色判定函式
+        const getBladeBadgeStyle = (blade) => {
+          const b = String(blade || '').trim();
+          if (!b || b === '-' || b === '—' || b === '無') return 'blade-badge-none';
+          if (b.includes('桃')) return 'blade-badge-tao';
+          const upper = b.toUpperCase();
+          if (upper.includes('TT')) return 'blade-badge-tt';
+          if (upper.includes('WDX')) return 'blade-badge-wdx';
+          if (upper.includes('AMEC')) return 'blade-badge-amec';
+          if (b.includes('京瓷') || upper.includes('KYOCERA')) return 'blade-badge-kyocera';
+          if (upper.includes('XCNT')) return 'blade-badge-xcnt';
+          if (upper.includes('SANDVIK') || b.includes('山特維克')) return 'blade-badge-sandvik';
+          if (upper.includes('CCMT') || upper.includes('CPMT')) return 'blade-badge-ccmt';
+          if (upper.includes('ISCAR') || b.includes('伊斯卡')) return 'blade-badge-iscar';
+          return 'blade-badge-other';
+        };
+
+        return {
+          currentDesktopTab, isVerified, passwordInput, loginError, isCheckingAuth, verifyPassword, logout, isLoading, isSubmitting,
+          steps, stepColors, activeItems, archiveItems, showCompletedDesktop, switchTab, fetchCurrentData,
+          searchBatch, searchSpec, adminFilterBatch, availableBatches, pinnedUrgentAndCustomItems, matchedDesktopItems,
+          filteredAdminItems, updateStep, showEditModal, editingItem, openModal, saveItem, deleteItem,
+          showStockModal, stockTargetItem, stockActualQty, confirmStockIn,
+          showScrapModal, isSubmittingScrap, currentScrapTargetItem, scrapForm, openScrapModal, submitScrapRecord,
+          showScrapQueryModal, queryScrapTarget, handleStepCellClick,
+          getScrapCount, calculateGoodQty, isStepScrapped, hasScrap, getScrapRecords,
+          handleFileUpload, getBladeBadgeStyle, currentDesktopTabItems
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
