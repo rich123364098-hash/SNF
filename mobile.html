@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>商富生產進度管理 - 現場倉管打卡端</title>
+
+  <!-- ================= 網頁特色圖示 (Favicon & 手機主畫面 App Icon) ================= -->
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="favicon.png">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-title" content="商富打卡">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- FontAwesome 圖示 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- LINE LIFF SDK (v2) -->
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    [v-cloak] { display: none; }
+    button, input, select { touch-action: manipulation; }
+
+    /* 刀片專屬高對比辨識色塊 (與電腦端 100% 同步) */
+    .blade-badge-tao { background-color: #795548 !important; color: #FFFFFF !important; }      /* 桃：咖啡色 */
+    .blade-badge-tt { background-color: #27AE60 !important; color: #FFFFFF !important; }       /* TT：綠色 */
+    .blade-badge-wdx { background-color: #9B59B6 !important; color: #FFFFFF !important; }      /* WDX：紫色 */
+    .blade-badge-amec { background-color: #E74C3C !important; color: #FFFFFF !important; }     /* AMEC：紅色 */
+    .blade-badge-kyocera { background-color: #FFA502 !important; color: #FFFFFF !important; }  /* 京瓷：活力橘 (避開 WDX 紫色) */
+    .blade-badge-xcnt { background-color: #F1C40F !important; color: #2C3E50 !important; }     /* XCNT：黃色 (原設定) */
+    .blade-badge-sandvik { background-color: #0ABDE3 !important; color: #FFFFFF !important; }  /* SANDVIK：天藍 (原設定) */
+    .blade-badge-ccmt { background-color: #FD79A8 !important; color: #FFFFFF !important; }     /* CCMT：粉紅 (原設定) */
+    .blade-badge-iscar { background-color: #1E90FF !important; color: #FFFFFF !important; }    /* ISCAR：寶藍 (避開 TT 綠色) */
+    .blade-badge-none { background-color: #CED6E0 !important; color: #57606F !important; }     /* 無 (原設定) */
+    .blade-badge-other { background-color: #747D8C !important; color: #FFFFFF !important; }    /* 其他 (原設定) */
+
+    /* 重點追蹤看板：五大分類專屬極淡背景色 (與電腦端 100% 同步) */
+    .kanban-bg-tao { background-color: #FAF3EE !important; }    /* 1. 桃：極淡暖褐底 */
+    .kanban-bg-tt { background-color: #EEFBF3 !important; }     /* 2. TT：極淡薄荷綠底 */
+    .kanban-bg-wdx { background-color: #F6F0FC !important; }    /* 3. WDX：極淡薰衣草紫底 */
+    .kanban-bg-core { background-color: #EDF6FF !important; }   /* 4. 留芯鑽：極淡冰川藍底 */
+    .kanban-bg-spade { background-color: #EFF6F6 !important; }  /* 5. 鏟鑽：極淡青灰底 */
+    .kanban-bg-other { background-color: #FFFFFF !important; }  /* 6. 其他未分類：純白底 */
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen selection:bg-blue-500 selection:text-white pb-20">
+
+  <div id="app" v-cloak>
+
+    <!-- ================= 全螢幕同步遮罩 ================= -->
+    <div v-if="isSyncing" class="fixed inset-0 bg-slate-900/85 backdrop-blur-md flex flex-col items-center justify-center p-6 z-[9999] select-none text-white text-center space-y-4">
+      <div class="w-12 h-12 border-4 border-white/20 border-t-amber-400 rounded-full animate-spin"></div>
+      <div>
+        <h3 class="text-sm font-black text-white tracking-wide">{{ syncingText || '正在同步雲端資料庫...' }}</h3>
+        <p class="text-[11px] text-amber-300 font-bold mt-1">資料確認落盤中，請勿關閉視窗！</p>
+      </div>
+    </div>
+
+    <!-- ================= 0. 現場倉管密碼驗證遮罩 (支援點擊任意處立即聚焦) ================= -->
+    <div v-if="!isVerified" 
+         @click="focusInput"
+         @touchstart.passive="focusInput"
+         class="fixed inset-0 bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4 z-50 cursor-pointer select-none">
+      
+      <div @click.stop="focusInput" 
+           class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-5 shadow-2xl border border-slate-200 text-center cursor-default">
+        
+        <!-- 登入頁商標：鎖定寬度防止切邊 -->
+        <div class="w-52 h-24 mx-auto flex items-center justify-center">
+          <svg class="w-full h-full" viewBox="0 0 500 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="snfLogoGradMobLogin" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#FF3800" />
+                <stop offset="42%" stop-color="#D80000" />
+                <stop offset="68%" stop-color="#FF5500" />
+                <stop offset="100%" stop-color="#FFA800" />
+              </linearGradient>
+            </defs>
+            <g font-family="Arial Black, Impact, sans-serif" font-weight="900" font-style="italic" font-size="160" fill="url(#snfLogoGradMobLogin)">
+              <text x="15" y="150" textLength="380" lengthAdjust="spacingAndGlyphs">SNF</text>
+            </g>
+            <g font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="44" fill="#000000">
+              <text x="18" y="222" textLength="370" lengthAdjust="spacingAndGlyphs">SHANG FUH</text>
+            </g>
+          </svg>
+        </div>
+
+        <div>
+          <h2 class="text-lg font-black text-slate-900">商富生產管理 - 現場端</h2>
+          <p class="text-xs text-slate-500 mt-1 font-bold">倉管 / 產線人員身分認證 (B3)</p>
+          <p class="text-[11px] text-blue-600 font-bold mt-1.5 flex items-center justify-center">
+            <i class="fa-solid fa-hand-pointer mr-1 animate-bounce"></i> 碰觸螢幕任一處即可開始鍵入
+          </p>
+        </div>
+
+        <form @submit.prevent="verifyPassword" class="space-y-4 text-left">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">現場倉管密碼</label>
+            <!-- 密碼輸入框：自動聚焦 ＋ 顯示/隱藏切換按鈕 -->
+            <div class="relative">
+              <input 
+                ref="loginInputRef"
+                v-model="passwordInput" 
+                :type="showPassword ? 'text' : 'password'" 
+                autofocus
+                required 
+                placeholder="請輸入現場端密碼..." 
+                class="w-full pl-4 pr-11 py-3 border-2 border-slate-300 focus:border-blue-600 rounded-xl font-bold text-base focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+              <button 
+                type="button" 
+                @click.stop="showPassword = !showPassword" 
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 focus:outline-none p-1.5 text-base transition"
+                tabindex="-1"
+                title="切換顯示密碼">
+                <i class="fa-solid" :class="showPassword ? 'fa-eye-slash' : 'fa-eye'"></i>
+              </button>
+            </div>
+          </div>
+          <p v-if="loginError" class="text-xs font-bold text-red-600 flex items-center">
+            <i class="fa-solid fa-triangle-exclamation mr-1"></i> {{ loginError }}
+          </p>
+          <button type="submit" :disabled="isCheckingAuth" class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-base rounded-xl shadow-md transition flex items-center justify-center active:scale-98">
+            <i v-if="isCheckingAuth" class="fa-solid fa-circle-notch fa-spin mr-2"></i>
+            {{ isCheckingAuth ? '驗證中...' : '進入現場打卡系統' }}
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= 1. 手機端主畫面 ================= -->
+    <div v-else class="max-w-md mx-auto p-4 space-y-3.5">
+      
+      <!-- 頂部資訊列：精確鎖定文字寬度，杜絕字元切邊 -->
+      <header class="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-28 h-14 flex-shrink-0 flex items-center justify-center">
+            <svg class="w-full h-full" viewBox="0 0 500 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="snfLogoGradMobTop" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#FF3800" />
+                  <stop offset="42%" stop-color="#D80000" />
+                  <stop offset="68%" stop-color="#FF5500" />
+                  <stop offset="100%" stop-color="#FFA800" />
+                </linearGradient>
+              </defs>
+              <g font-family="Arial Black, Impact, sans-serif" font-weight="900" font-style="italic" font-size="160" fill="url(#snfLogoGradMobTop)">
+                <text x="15" y="150" textLength="380" lengthAdjust="spacingAndGlyphs">SNF</text>
+              </g>
+              <g font-family="Arial Black, Helvetica, sans-serif" font-weight="900" font-size="44" fill="#000000">
+                <text x="18" y="222" textLength="370" lengthAdjust="spacingAndGlyphs">SHANG FUH</text>
+              </g>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-sm font-black text-slate-900 leading-tight">商富現場打卡端</h1>
+            <p class="text-[11px] font-bold text-slate-500">
+              <span v-if="lineUserName" class="text-emerald-600"><i class="fa-brands fa-line mr-1"></i>{{ lineUserName }}</span>
+              <span v-else>在製工單：{{ activeItems.length }} 件</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <button @click="fetchData" :disabled="isLoading" title="重新整理" class="p-2.5 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl border transition">
+            <i class="fa-solid fa-rotate" :class="{ 'fa-spin': isLoading }"></i>
+          </button>
+          <button @click="logout" title="登出" class="p-2.5 text-slate-400 hover:text-red-600 bg-slate-100 rounded-xl border transition">
+            <i class="fa-solid fa-power-off"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- 手機端雙分頁切換列 (搜尋與打卡 / 重點追蹤看板) -->
+      <div class="grid grid-cols-2 gap-1.5 bg-slate-200/90 p-1.5 rounded-2xl shadow-inner select-none">
+        <button 
+          @click="currentMobileTab = 'punch'" 
+          :class="currentMobileTab === 'punch' ? 'bg-white text-blue-700 font-black shadow-sm' : 'text-slate-600 font-bold hover:text-slate-900'" 
+          class="py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center">
+          <i class="fa-solid fa-magnifying-glass mr-1.5"></i>
+          <span>搜尋與打卡</span>
+        </button>
+
+        <button 
+          @click="currentMobileTab = 'kanban'" 
+          :class="currentMobileTab === 'kanban' ? 'bg-white text-amber-950 font-black shadow-sm' : 'text-slate-600 font-bold hover:text-slate-900'" 
+          class="py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center space-x-1.5">
+          <span class="flex h-2 w-2 relative flex-shrink-0">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+          </span>
+          <span>重點追蹤看板</span>
+          <span class="px-1.5 py-0.2 rounded-full text-[10px] font-black"
+                :class="currentMobileTab === 'kanban' ? 'bg-red-600 text-white' : 'bg-slate-300 text-slate-700'">
+            {{ pinnedUrgentAndCustomItems.length }}
+          </span>
+        </button>
+      </div>
+
+      <!-- 載入中狀態 -->
+      <div v-if="isLoading" class="text-center py-12 text-slate-400 font-bold text-xs bg-white rounded-3xl border border-slate-200 shadow-sm">
+        <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600 block mb-2"></i>
+        正在載入產線最新工單...
+      </div>
+
+      <!-- ================= 分頁 A：搜尋與打卡 ================= -->
+      <template v-else-if="currentMobileTab === 'punch'">
+        
+        <!-- 搜尋與站別篩選滑軌 -->
+        <section class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-2.5">
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input 
+                v-model.trim="searchQuery" 
+                type="text" 
+                placeholder="輸入編號、規格或刀片搜尋..." 
+                class="w-full pl-8 pr-3 py-2.5 border border-slate-300 rounded-xl font-bold text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+            <button v-if="searchQuery" @click="searchQuery = ''" class="px-3 bg-slate-200 text-slate-600 rounded-xl text-xs font-bold">
+              清除
+            </button>
+          </div>
+
+          <!-- 站別過濾滑軌 -->
+          <div class="flex overflow-x-auto space-x-1.5 pb-1 text-xs">
+            <button 
+              @click="filterStation = 'all'" 
+              :class="filterStation === 'all' ? 'bg-slate-800 text-white font-black shadow-sm' : 'bg-slate-100 text-slate-600 font-bold'" 
+              class="px-3 py-1.5 rounded-xl whitespace-nowrap transition">
+              全部 ({{ activeItems.length }})
+            </button>
+
+            <!-- 0. 待料盤點按鈕 -->
+            <button 
+              @click="filterStation = (filterStation === 0 ? 'all' : 0)" 
+              :class="filterStation === 0 ? 'bg-amber-600 text-white font-black shadow-sm' : 'bg-amber-50 text-amber-800 border border-amber-200 font-bold'" 
+              class="px-2.5 py-1.5 rounded-xl whitespace-nowrap transition">
+              0. 待料盤點 ({{ getStationCount(0) }})
+            </button>
+
+            <!-- 1 ~ 8 加工站按鈕 -->
+            <button 
+              v-for="(st, idx) in regularSteps" 
+              :key="st" 
+              @click="filterStation = (filterStation === (idx + 1) ? 'all' : (idx + 1))" 
+              :class="filterStation === (idx + 1) ? 'bg-blue-600 text-white font-black shadow-sm' : 'bg-slate-100 text-slate-600 font-bold'" 
+              class="px-2.5 py-1.5 rounded-xl whitespace-nowrap transition">
+              {{ idx + 1 }}. {{ st }} ({{ getStationCount(idx + 1) }})
+            </button>
+          </div>
+        </section>
+
+        <!-- 初始導引提示畫面 -->
+        <div v-if="!searchQuery && filterStation === 'all'" class="text-center py-14 px-4 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <div class="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-black text-slate-800">請輸入資料搜尋或選擇站別</h3>
+            <p class="text-xs text-slate-400 font-bold mt-1">請在上方輸入生產編號、規格，或點選站別標籤顯示工單</p>
+          </div>
+        </div>
+
+        <!-- 工單卡片清單 -->
+        <div v-else class="space-y-3">
+          <div class="text-xs font-bold text-slate-500 px-1">
+            符合條件工單：共 {{ filteredItems.length }} 筆
+          </div>
+
+          <div v-for="item in filteredItems" :key="item.id" 
+               class="bg-white rounded-2xl shadow-sm border p-4 transition-all"
+               :class="[
+                 item.isUrgent ? 'border-2 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.2)]' : 
+                 item.isCustom ? 'border-2 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)]' : 
+                 'border-slate-200'
+               ]">
+            
+            <!-- 卡片頂部資訊 -->
+            <div class="flex justify-between items-start gap-2 mb-2">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center flex-wrap gap-1.5 mb-1.5">
+                  <!-- 深炭黑鋼印底 + 極白字 -->
+                  <span class="bg-slate-900 text-white font-mono text-xs font-black px-2.5 py-0.5 rounded-lg shadow-sm">
+                    編號 {{ item.batch }}
+                  </span>
+                  <span v-if="item.isCustom" class="bg-amber-400 text-amber-950 border border-amber-500 text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">
+                    ⭐ 訂製
+                  </span>
+                  <span v-if="item.isUrgent" class="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-sm">
+                    🚨 急件
+                  </span>
+                  <span v-if="item.isUrgent && getUrgentStock(item) !== null"
+                        :class="getUrgentStock(item) === 0 ? 'bg-rose-600 text-white border-rose-800' : 'bg-white text-red-600 border-red-500'"
+                        class="text-[11px] font-black px-2 py-0.5 rounded-md border shadow-sm">
+                    庫存: {{ getUrgentStock(item) }} 支
+                  </span>
+                  <span v-if="item.currentStep === 0" class="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-0.5 rounded-md">
+                    待料未開工
+                  </span>
+                </div>
+                <h3 class="text-lg font-black text-slate-900 leading-snug break-words">{{ item.spec }}</h3>
+              </div>
+
+              <!-- 數量與良品方塊 -->
+              <div class="text-right flex-shrink-0 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-xl">
+                <template v-if="getScrapCount(item) > 0">
+                  <span class="text-[10px] text-rose-600 font-bold block">剩餘良品</span>
+                  <span class="text-base font-black text-rose-600">{{ calculateGoodQty(item) }} <span class="text-xs text-slate-500">支</span></span>
+                  <span class="text-[10px] text-rose-500 font-bold block">(損 {{ getScrapCount(item) }})</span>
+                </template>
+                <template v-else>
+                  <span class="text-[10px] text-sky-700 font-bold block">預計數量</span>
+                  <span class="text-base font-black text-sky-900">{{ item.qty }} <span class="text-xs text-slate-500">支</span></span>
+                </template>
+              </div>
+            </div>
+
+            <!-- 卡片規格參數 -->
+            <div class="flex flex-wrap items-center gap-1.5 text-xs mb-3">
+              <span v-if="item.blade && item.blade.trim() !== '' && item.blade !== '-' && item.blade !== '無'" 
+                    :class="getBladeBadgeStyle(item.blade)" class="px-2.5 py-1 rounded-lg font-black text-[11px] shadow-sm">
+                刀片: {{ item.blade }}
+              </span>
+              <span v-if="item.material && item.material.trim() !== '' && item.material !== '-'" 
+                    class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-300 text-[11px] font-bold">
+                素材: {{ item.material }}
+              </span>
+            </div>
+
+            <!-- 醒目備註說明條 (已自動隱藏庫存標記) -->
+            <div v-if="getCleanRemark(item.remark) && getCleanRemark(item.remark) !== '-'" 
+                 class="p-2 mb-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black text-amber-950 flex items-center">
+              <i class="fa-solid fa-circle-exclamation text-amber-600 mr-1.5 text-xs flex-shrink-0"></i>
+              <span class="break-words">{{ getCleanRemark(item.remark) }}</span>
+            </div>
+
+            <!-- 現場快速打卡按鈕群 (完工確認邏輯 ＋ 循序防呆 ＋ 第 9 站管理員唯讀) -->
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <span class="text-[11px] font-bold text-slate-400">製程推進打卡：</span>
+                <span class="text-[11px] font-black text-emerald-700">
+                  目前已完成：{{ item.currentStep === 0 ? '待料未開工' : steps[item.currentStep - 1] }}
+                </span>
+              </div>
+              
+              <div class="grid grid-cols-3 gap-1.5">
+                <button 
+                  v-for="(st, idx) in steps" 
+                  :key="st"
+                  @click="onStepClick(item, idx + 1)"
+                  :disabled="(idx + 1) !== (item.currentStep + 1) || (idx + 1) === 9"
+                  :class="[
+                    // 1. 第 9 站：入庫結案 (固定鎖定給電腦端生管)
+                    idx === 8 ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-80' :
+                    
+                    // 2. 當前最新已完工站別：翡翠綠底白字
+                    item.currentStep === (idx + 1) ? 'bg-emerald-600 text-white font-black shadow-sm cursor-default ring-2 ring-emerald-300' : 
+                    
+                    // 3. 唯一允許推進的「下一站」：高亮提示點擊完成
+                    (idx + 1) === (item.currentStep + 1) ? 'bg-blue-600 text-white font-black shadow-md ring-2 ring-blue-300 hover:bg-blue-700 active:scale-95' :
+                    
+                    // 4. 過去已完工站別：藍底打勾
+                    item.currentStep > (idx + 1) ? 'bg-blue-50/70 text-blue-700 font-bold border border-blue-200 cursor-not-allowed opacity-80' : 
+                    
+                    // 5. 未來站別：禁止跳站
+                    'bg-slate-100 text-slate-300 font-medium border border-dashed border-slate-200 cursor-not-allowed opacity-60'
+                  ]"
+                  class="py-2.5 px-1 text-[11px] rounded-xl text-center transition flex flex-col items-center justify-center">
+                  
+                  <span>{{ idx + 1 }}. {{ st }}</span>
+
+                  <!-- 第 9 站標記 -->
+                  <span v-if="idx === 8" class="text-[9px] text-slate-400 font-bold mt-0.5 flex items-center">
+                    <i class="fa-solid fa-lock mr-0.5 text-[8px]"></i>限生管
+                  </span>
+
+                  <!-- 當前站別：已完成 -->
+                  <span v-else-if="item.currentStep === (idx + 1)" class="text-[9px] bg-emerald-700 text-white px-1.5 py-0.2 rounded mt-0.5 font-black">
+                    已完成
+                  </span>
+
+                  <!-- 下一站：點擊完成 -->
+                  <span v-else-if="(idx + 1) === (item.currentStep + 1)" class="text-[9px] bg-blue-800 text-white px-1.5 py-0.2 rounded mt-0.5 font-bold animate-pulse">
+                    點擊完成
+                  </span>
+
+                  <!-- 過去站別打勾 -->
+                  <i v-else-if="item.currentStep > (idx + 1)" class="fa-solid fa-check text-[10px] text-blue-600 mt-0.5"></i>
+
+                  <!-- 未來站別 -->
+                  <span v-else class="text-[9px] text-slate-300 mt-0.5">未到達</span>
+                </button>
+              </div>
+              
+              <p v-if="item.currentStep === 8" class="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 rounded-xl p-2 mt-2 text-center">
+                ✓ 產線製程已全數完成，請由生管於電腦端確認入庫結案！
+              </p>
+            </div>
+
+          </div>
+
+          <div v-if="filteredItems.length === 0" class="text-center py-12 text-slate-400 font-bold text-xs bg-white rounded-2xl border">
+            找不到符合條件的在製工單
+          </div>
+        </div>
+
+      </template>
+
+      <!-- ================= 分頁 B：現場重點追蹤看板 (獨立頁面) ================= -->
+      <template v-else-if="currentMobileTab === 'kanban'">
+        
+        <section v-if="pinnedUrgentAndCustomItems.length > 0" class="bg-amber-50/95 border-2 border-amber-300 rounded-3xl p-3.5 shadow-sm">
+          <div class="pb-2.5 mb-3 border-b border-amber-200 space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="flex h-3 w-3 relative flex-shrink-0">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
+                </span>
+                <h3 class="text-xs font-black text-amber-950">現場重點追蹤看板 (訂製品優先 / 急件分類)</h3>
+              </div>
+              <span class="text-[11px] font-black text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded-lg">
+                共 {{ pinnedUrgentAndCustomItems.length }} 件
+              </span>
+            </div>
+
+            <!-- 五大分類底色圖例提示 -->
+            <div class="flex flex-wrap items-center gap-1 text-[10px] font-bold text-slate-600">
+              <span class="text-slate-400">底色分類：</span>
+              <span class="kanban-bg-tao border border-amber-900/20 px-1.5 py-0.5 rounded text-amber-950">桃</span>
+              <span class="kanban-bg-tt border border-emerald-700/20 px-1.5 py-0.5 rounded text-emerald-900">TT</span>
+              <span class="kanban-bg-wdx border border-purple-700/20 px-1.5 py-0.5 rounded text-purple-900">WDX</span>
+              <span class="kanban-bg-core border border-sky-700/20 px-1.5 py-0.5 rounded text-sky-900">留芯鑽</span>
+              <span class="kanban-bg-spade border border-teal-700/20 px-1.5 py-0.5 rounded text-teal-900">鏟鑽</span>
+              <span class="bg-white border border-slate-300 px-1.5 py-0.5 rounded text-slate-600">其他</span>
+            </div>
+          </div>
+
+          <!-- 手機端單欄卡片清單 -->
+          <div class="grid grid-cols-1 gap-2.5">
+            <div v-for="item in pinnedUrgentAndCustomItems" :key="'mob-kanban-' + item.id" 
+                 class="border-2 rounded-xl p-3 shadow-sm flex flex-col justify-between transition-colors" 
+                 :class="[
+                   getKanbanCategoryInfo(item).bgClass,
+                   item.isCustom ? 'border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.18)]' : 'border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.15)]'
+                 ]">
+              <div class="flex justify-between items-start gap-2">
+                <div class="min-w-0 flex-1">
+                  <!-- 看板編號標籤 (深炭黑鋼印底 + 極白字) -->
+                  <div class="inline-block bg-slate-900 text-white font-mono font-black text-[11px] px-2 py-0.5 rounded-lg mb-1">
+                    編號 {{ item.batch }}
+                  </div>
+                  <p class="text-base font-black text-slate-900 break-words my-0.5">{{ item.spec }}</p>
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 mt-1">
+                    <span>良品: <strong class="text-slate-900 font-black">{{ calculateGoodQty(item) }}</strong> 支</span>
+                    <span v-if="getScrapCount(item) > 0" class="text-rose-600 font-bold">(損: {{ getScrapCount(item) }})</span>
+                    <span v-if="item.blade && item.blade.trim() !== '' && item.blade !== '-' && !isSpecDrillCategory(item)" class="text-slate-300">|</span>
+                    <span v-if="item.blade && item.blade.trim() !== '' && item.blade !== '-' && !isSpecDrillCategory(item)">刀片: 
+                      <span :class="getBladeBadgeStyle(item.blade)" class="ml-1 px-1.5 py-0.2 rounded text-[10px] font-black inline-block">
+                        {{ item.blade }}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                <!-- 右上角標牌與放大版急件庫存警示格 -->
+                <div class="flex flex-col items-end space-y-1.5 flex-shrink-0">
+                  <div class="flex items-center space-x-1">
+                    <span v-if="item.isCustom" class="bg-amber-400 text-amber-950 border border-amber-500 text-[11px] font-black px-2 py-0.5 rounded-lg shadow-sm whitespace-nowrap">⭐ 訂製</span>
+                    <span v-if="item.isUrgent" class="bg-red-600 text-white text-[11px] font-black px-2 py-0.5 rounded-lg shadow-sm whitespace-nowrap">🚨 急件</span>
+                  </div>
+                  <!-- 放大版急件目前庫存數量標示 (0支=實心紅底白字；1支以上=白底粗紅框紅字) -->
+                  <div v-if="item.isUrgent && getUrgentStock(item) !== null"
+                       :class="getUrgentStock(item) === 0 ? 'bg-rose-600 text-white border-2 border-rose-800 shadow-[0_2px_8px_rgba(225,29,72,0.35)]' : 'bg-white text-red-600 border-2 border-red-500 shadow-sm'"
+                       class="px-2.5 py-1 rounded-xl whitespace-nowrap inline-flex items-baseline space-x-1">
+                    <span class="text-[11px] font-black tracking-tight"><i class="fa-solid fa-boxes-stacked mr-1"></i>庫存:</span>
+                    <strong class="text-lg font-mono font-black leading-none">{{ getUrgentStock(item) }}</strong>
+                    <span class="text-[11px] font-black">支</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 醒目備註 (看板) -->
+              <div v-if="getCleanRemark(item.remark) && getCleanRemark(item.remark) !== '-'" class="mt-2 p-2 bg-amber-100/90 border border-amber-300 rounded-lg text-xs font-black text-amber-950 flex items-center">
+                <i class="fa-solid fa-triangle-exclamation text-amber-600 mr-1.5 text-xs flex-shrink-0"></i>
+                <span class="break-words">{{ getCleanRemark(item.remark) }}</span>
+              </div>
+
+              <div class="mt-2.5 pt-2 border-t border-slate-200/70 flex items-center justify-between gap-2.5">
+                <span class="text-[11px] text-slate-500 font-bold whitespace-nowrap">目前進度</span>
+                <div class="flex-1 flex items-center space-x-1 bg-white/80 p-1 rounded-lg border border-slate-200">
+                  <div v-for="(colorClass, sIdx) in stepColors" :key="sIdx" :class="[item.currentStep >= (sIdx + 1) ? colorClass : 'bg-slate-200 opacity-60', item.currentStep === (sIdx + 1) ? 'ring-1 ring-slate-900/40 shadow-sm' : '']" class="h-2.5 flex-1 rounded-sm transition-all duration-300" :title="steps[sIdx]"></div>
+                </div>
+                <span class="text-xs font-black text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300 whitespace-nowrap">
+                  {{ item.currentStep === 0 ? '待料盤點' : steps[item.currentStep - 1] }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 無急件或訂製品時的空狀態畫面 -->
+        <div v-else class="text-center py-14 px-4 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-2">
+          <i class="fa-regular fa-circle-check text-3xl text-emerald-500 block"></i>
+          <h3 class="text-sm font-black text-slate-800">目前無急件或訂製品工單</h3>
+          <p class="text-xs text-slate-400 font-bold">所有重點追蹤項目皆已完工或尚未標記</p>
+        </div>
+
+      </template>
+
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted, nextTick } = Vue;
+
+    createApp({
+      setup() {
+        const API_URL = 'https://script.google.com/macros/s/AKfycbw7xoMPCwINwKSZyvH2-8QsEnOqtpsvXy68666qYalCO4hqsSp0eVkA4HHpkGfkNlVN/exec';
+        const LIFF_ID = '';
+
+        // 手機端分頁狀態：'punch' (搜尋與打卡) | 'kanban' (重點追蹤看板)
+        const currentMobileTab = ref('punch');
+
+        const isVerified = ref(false);
+        const passwordInput = ref('');
+        const loginError = ref('');
+        const isCheckingAuth = ref(false);
+        const isLoading = ref(false);
+
+        // 登入密碼自動聚焦與明碼切換
+        const showPassword = ref(false);
+        const loginInputRef = ref(null);
+
+        // 同步狀態控制
+        const isSyncing = ref(false);
+        const syncingText = ref('');
+
+        const activeItems = ref([]);
+        const searchQuery = ref('');
+        const filterStation = ref('all');
+        const lineUserName = ref('');
+
+        const steps = ['物料區', '車床完成', '銑溝完成', '刀片座完成', '等待熱處理', '熱處理完成', '等待研磨', '電鍍/染黑', '入庫'];
+        const regularSteps = computed(() => steps.slice(0, 8));
+        const stepColors = ['bg-slate-500', 'bg-sky-500', 'bg-teal-500', 'bg-emerald-500', 'bg-amber-400', 'bg-orange-500', 'bg-purple-500', 'bg-indigo-600', 'bg-cyan-600'];
+
+        // 碰觸任意處立即聚焦輸入框
+        const focusInput = () => {
+          if (!isVerified.value && loginInputRef.value) {
+            loginInputRef.value.focus();
+          }
+        };
+
+        // ================= 急件庫存智慧標籤解析與過濾 (與電腦端 100% 同步) =================
+        const getUrgentStock = (item) => {
+          if (!item || !item.remark) return null;
+          const match = String(item.remark).match(/\[庫存[:：]\s*(\d+)\]/);
+          return match ? Number(match[1]) : null;
+        };
+
+        const getCleanRemark = (remarkStr) => {
+          if (!remarkStr) return '';
+          return String(remarkStr).replace(/\[庫存[:：]\s*\d+\]\s*/g, '').trim();
+        };
+
+        // ================= 看板五大分類識別與極淡底色對應 (與電腦端 100% 同步) =================
+        const isSpecDrillCategory = (item) => {
+          const s = String(item?.spec || '').trim();
+          return s.includes('留芯鑽') || s.includes('鏟鑽');
+        };
+
+        const getKanbanCategoryInfo = (item) => {
+          const specStr = String(item?.spec || '').trim();
+          const bladeStr = String(item?.blade || '').trim();
+          const bladeUpper = bladeStr.toUpperCase();
+
+          // 留芯鑽與鏟鑽直接讀取「規格」欄位，不讀取刀片欄
+          if (specStr.includes('留芯鑽')) {
+            return { order: 4, key: 'core', name: '留芯鑽', bgClass: 'kanban-bg-core' };
+          }
+          if (specStr.includes('鏟鑽')) {
+            return { order: 5, key: 'spade', name: '鏟鑽', bgClass: 'kanban-bg-spade' };
+          }
+
+          // 桃、TT、WDX 讀取「刀片」欄位
+          if (bladeStr.includes('桃')) {
+            return { order: 1, key: 'tao', name: '桃', bgClass: 'kanban-bg-tao' };
+          }
+          if (bladeUpper.includes('TT')) {
+            return { order: 2, key: 'tt', name: 'TT', bgClass: 'kanban-bg-tt' };
+          }
+          if (bladeUpper.includes('WDX')) {
+            return { order: 3, key: 'wdx', name: 'WDX', bgClass: 'kanban-bg-wdx' };
+          }
+
+          // 未偵測到上述 5 類者，不套用彩色背景並自動聚在一起
+          return { order: 6, key: 'other', name: '其他', bgClass: 'kanban-bg-other' };
+        };
+
+        // 看板獨立排序：1. 訂製品優先置頂 ➔ 2. 依五大分類(桃、TT、WDX、留芯鑽、鏟鑽、其他)自動聚攏 ➔ 3. 同類依編號排
+        const pinnedUrgentAndCustomItems = computed(() => {
+          return activeItems.value
+            .filter(i => (i.isUrgent || i.isCustom))
+            .sort((a, b) => {
+              if (Boolean(a.isCustom) !== Boolean(b.isCustom)) {
+                return a.isCustom ? -1 : 1;
+              }
+              const catA = getKanbanCategoryInfo(a).order;
+              const catB = getKanbanCategoryInfo(b).order;
+              if (catA !== catB) {
+                return catA - catB;
+              }
+              const batchComp = String(a.batch || '').localeCompare(String(b.batch || ''), undefined, { numeric: true });
+              if (batchComp !== 0) return batchComp;
+              return String(a.spec || '').localeCompare(String(b.spec || ''));
+            });
+        });
+
+        const getScrapRecords = (item) => {
+          if (!item) return [];
+          if (Array.isArray(item.scrapHistory)) return item.scrapHistory;
+          try {
+            if (typeof item.scrapHistory === 'string' && item.scrapHistory.trim() !== '') {
+              return JSON.parse(item.scrapHistory);
+            }
+          } catch(e) {}
+          return [];
+        };
+
+        const getScrapCount = (item) => {
+          const list = getScrapRecords(item);
+          return list.reduce((sum, r) => sum + (Number(r.scrapQty) || 0), 0);
+        };
+
+        const calculateGoodQty = (item) => {
+          if (!item) return 0;
+          const orig = Number(item.qty) || 0;
+          const scrap = getScrapCount(item);
+          return Math.max(0, orig - scrap);
+        };
+
+        const sanitizeItems = (rawList) => {
+          return (rawList || []).map(it => {
+            const rawStep = it.currentStep;
+            const parsedStep = (rawStep !== undefined && rawStep !== null && rawStep !== '' && !isNaN(rawStep)) ? Number(rawStep) : 0;
+            return {
+              ...it,
+              id: String(it.id || '').trim(),
+              batch: String(it.batch || '').trim(),
+              spec: String(it.spec || '').trim(),
+              qty: Number(it.qty) || 1,
+              currentStep: parsedStep,
+              isUrgent: Boolean(it.isUrgent),
+              isCustom: Boolean(it.isCustom),
+              remark: String(it.remark || '').trim(),
+              scrapHistory: it.scrapHistory ? (typeof it.scrapHistory === 'string' ? JSON.parse(it.scrapHistory || '[]') : it.scrapHistory) : []
+            };
+          });
+        };
+
+        onMounted(async () => {
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+          } catch(e) {}
+          isVerified.value = false;
+
+          // 1. 嘗試直接聚焦 (部分 Android / 模擬器生效)
+          nextTick(() => {
+            setTimeout(() => {
+              focusInput();
+            }, 80);
+          });
+
+          // 2. 監聽全螢幕首次觸碰：只要手指碰到手機任何位置，瞬間以手勢權限呼叫鍵盤
+          const handleFirstScreenTouch = () => {
+            if (!isVerified.value) {
+              focusInput();
+            }
+          };
+          window.addEventListener('touchstart', handleFirstScreenTouch, { passive: true });
+          window.addEventListener('touchend', handleFirstScreenTouch, { passive: true });
+          window.addEventListener('click', handleFirstScreenTouch);
+
+          if (LIFF_ID && window.liff) {
+            try {
+              await liff.init({ liffId: LIFF_ID });
+              if (liff.isLoggedIn()) {
+                const profile = await liff.getProfile();
+                lineUserName.value = profile.displayName;
+              }
+            } catch (err) {
+              console.warn('LIFF 初始化略過', err);
+            }
+          }
+        });
+
+        // 現場倉管密碼驗證 (檢查 B3)
+        const verifyPassword = async () => {
+          loginError.value = '';
+          isCheckingAuth.value = true;
+          try {
+            const res = await fetch(`${API_URL}?action=check_auth&type=warehouse&pwd=${encodeURIComponent(passwordInput.value)}&_t=${Date.now()}`);
+            const json = await res.json();
+            if (json.status === 'success' && json.verified) {
+              isVerified.value = true;
+              fetchData();
+            } else {
+              loginError.value = '現場倉管密碼錯誤，請重新確認！';
+              nextTick(() => {
+                focusInput();
+              });
+            }
+          } catch (e) {
+            console.error('驗證失敗', e);
+            loginError.value = '無法連線驗證伺服器，請確認網路！';
+          } finally {
+            isCheckingAuth.value = false;
+          }
+        };
+
+        const logout = () => {
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+          } catch(e) {}
+          isVerified.value = false;
+          passwordInput.value = '';
+          showPassword.value = false;
+          currentMobileTab.value = 'punch';
+          nextTick(() => {
+            setTimeout(() => {
+              focusInput();
+            }, 80);
+          });
+        };
+
+        // 讀取工單資料
+        const fetchData = async () => {
+          isLoading.value = true;
+          try {
+            const res = await fetch(`${API_URL}?_t=${Date.now()}`);
+            const json = await res.json();
+            if (json && json.status === 'success') {
+              activeItems.value = sanitizeItems(json.data);
+            }
+          } catch (e) {
+            console.error('讀取生產中清單失敗', e);
+          } finally {
+            isLoading.value = false;
+          }
+        };
+
+        // 手機端專用 POST 寫入 (相容 iOS Safari 跨網域)
+        const syncItemToSheet = async (action, payload) => {
+          try {
+            await fetch(API_URL, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({ action: action, ...payload })
+            });
+            return { status: 'success' };
+          } catch (e) {
+            console.error('同步失敗', e);
+            throw e;
+          }
+        };
+
+        const getStationCount = (st) => {
+          return activeItems.value.filter(i => Number(i.currentStep) === Number(st)).length;
+        };
+
+        const filteredItems = computed(() => {
+          if (!searchQuery.value && filterStation.value === 'all') {
+            return [];
+          }
+
+          return activeItems.value.filter(item => {
+            if (filterStation.value !== 'all' && Number(item.currentStep) !== Number(filterStation.value)) {
+              return false;
+            }
+            if (searchQuery.value) {
+              const q = searchQuery.value.trim().toLowerCase();
+              const b = String(item.batch || '').toLowerCase();
+              const s = String(item.spec || '').toLowerCase();
+              const blade = String(item.blade || '').toLowerCase();
+              const match = b.includes(q) || s.includes(q) || blade.includes(q);
+              if (!match) return false;
+            }
+            return true;
+          });
+        });
+
+        // 現場打卡：嚴格循序推進防呆
+        const onStepClick = async (item, stepNum) => {
+          // 1. 手機端嚴禁點擊第 9 站 (入庫結案)
+          if (stepNum === 9) {
+            alert('入庫結案為生管專屬權限，請由電腦端「生管進度全覽」執行結案！');
+            return;
+          }
+
+          // 2. 嚴格循序檢查：必須是當前站別的下一站
+          if (stepNum !== item.currentStep + 1) {
+            return;
+          }
+
+          isSyncing.value = true;
+          syncingText.value = `正在標記【${steps[stepNum - 1]}】已完成...`;
+          try {
+            const updated = { ...item, currentStep: stepNum };
+            await syncItemToSheet('save', { item: updated });
+            item.currentStep = stepNum;
+          } catch (err) {
+            alert('打卡失敗：' + (err.message || '請確認網路連線！'));
+          } finally {
+            isSyncing.value = false;
+          }
+        };
+
+        const getBladeBadgeStyle = (blade) => {
+          const b = String(blade || '').trim();
+          if (!b || b === '-' || b === '—' || b === '無') return 'blade-badge-none';
+          if (b.includes('桃')) return 'blade-badge-tao';
+          const upper = b.toUpperCase();
+          if (upper.includes('TT')) return 'blade-badge-tt';
+          if (upper.includes('WDX')) return 'blade-badge-wdx';
+          if (upper.includes('AMEC')) return 'blade-badge-amec';
+          if (b.includes('京瓷') || upper.includes('KYOCERA')) return 'blade-badge-kyocera';
+          if (upper.includes('XCNT')) return 'blade-badge-xcnt';
+          if (upper.includes('SANDVIK') || b.includes('山特維克')) return 'blade-badge-sandvik';
+          if (upper.includes('CCMT') || upper.includes('CPMT')) return 'blade-badge-ccmt';
+          if (upper.includes('ISCAR') || b.includes('伊斯卡')) return 'blade-badge-iscar';
+          return 'blade-badge-other';
+        };
+
+        return {
+          currentMobileTab,
+          isVerified, passwordInput, loginError, isCheckingAuth, verifyPassword, logout,
+          showPassword, loginInputRef, focusInput,
+          isLoading, isSyncing, syncingText, activeItems, searchQuery, filterStation, filteredItems,
+          steps, regularSteps, stepColors, getStationCount, onStepClick,
+          pinnedUrgentAndCustomItems, getUrgentStock, getCleanRemark, getKanbanCategoryInfo, isSpecDrillCategory,
+          getBladeBadgeStyle, lineUserName, fetchData, calculateGoodQty, getScrapCount
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
